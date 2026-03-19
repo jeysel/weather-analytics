@@ -98,10 +98,10 @@ Série dos **últimos 90 dias** para a cidade selecionada.
 
 **{resumo_cidade[0].city_name}** — {resumo_cidade[0].state_name} · {resumo_cidade[0].region}
 
-<BigValue data={resumo_cidade} value="media_temperatura" title="Temp. Média" fmt="0.0°C" />
-<BigValue data={resumo_cidade} value="media_maxima" title="Máxima Média" fmt="0.0°C" />
-<BigValue data={resumo_cidade} value="media_minima" title="Mínima Média" fmt="0.0°C" />
-<BigValue data={resumo_cidade} value="anomalia_media" title="Anomalia Média" fmt="+0.00;-0.00°C" />
+<BigValue data={resumo_cidade} value="media_temperatura" title="Temp. Média" fmt="0.0" />
+<BigValue data={resumo_cidade} value="media_maxima" title="Máxima Média" fmt="0.0" />
+<BigValue data={resumo_cidade} value="media_minima" title="Mínima Média" fmt="0.0" />
+<BigValue data={resumo_cidade} value="anomalia_media" title="Anomalia Média" fmt="+0.00;-0.00" />
 
 {/if}
 

@@ -219,7 +219,7 @@ Eventos climáticos extremos detectados nos **últimos 30 dias**.
   <Column id="region" title="Região" />
   <Column id="alert_type" title="Tipo" />
   <Column id="severity" title="Severidade" contentType="colorscale" />
-  <Column id="temp_max_c" title="Temp. Máx" fmt="0.0°C" />
+  <Column id="temp_max_c" title="Temp. Máx" fmt="0.0" />
   <Column id="precipitation_mm" title="Precip." fmt="0.0mm" />
   <Column id="wind_speed_max_kmh" title="Vento" fmt="0.0 km/h" />
 </DataTable>

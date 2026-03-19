@@ -137,12 +137,12 @@ order by region, city_name
 
 **Período:** últimos 90 dias
 
-<BigValue data={resumo_periodo} value="media_temperatura" title="Temp. Média" fmt="0.0°C" />
-<BigValue data={resumo_periodo} value="recorde_calor" title="Recorde de Calor" fmt="0.0°C" />
-<BigValue data={resumo_periodo} value="recorde_frio" title="Recorde de Frio" fmt="0.0°C" />
+<BigValue data={resumo_periodo} value="media_temperatura" title="Temp. Média" fmt="0.0" />
+<BigValue data={resumo_periodo} value="recorde_calor" title="Recorde de Calor" fmt="0.0" />
+<BigValue data={resumo_periodo} value="recorde_frio" title="Recorde de Frio" fmt="0.0" />
 <BigValue data={resumo_periodo} value="chuva_acumulada_mm" title="Chuva Acumulada" fmt="0mm" />
 <BigValue data={resumo_periodo} value="dias_com_chuva" title="Dias com Chuva" />
-<BigValue data={resumo_periodo} value="anomalia_media_c" title="Anomalia Média" fmt="+0.00;-0.00°C" />
+<BigValue data={resumo_periodo} value="anomalia_media_c" title="Anomalia Média" fmt="+0.00;-0.00" />
 
 ---
 

@@ -90,7 +90,7 @@ com dados históricos de **{new Date(totais[0].data_inicial).toLocaleDateString(
   data={totais}
   value="temp_media_geral_c"
   title="Temp. Média Geral"
-  fmt="0.0°C"
+  fmt="0.0"
 />
 <BigValue
   data={alertas_ativos}
