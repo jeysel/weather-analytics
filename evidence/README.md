@@ -66,16 +66,45 @@ npm run dev
 
 ### GitHub Pages (gratuito)
 
-```bash
-npm run build
+O deploy é automático via GitHub Actions a cada push na branch `main` que altere arquivos em `Weather-Analytics/evidence/`.
+
+#### Passo 1 — Ativar GitHub Pages
+
+```
+Repositório → Settings → Pages → Source → selecionar "GitHub Actions"
 ```
 
-# O projeto está com o GitHub Actions configurado para publicar as alterações automaticamente.
-# Passos executados: 
+#### Passo 2 — Cadastrar os Secrets
 
-* No repositório → Settings → Pages → em Source, selecionar "GitHub Actions"
+```
+Repositório → Settings → Secrets and variables → Actions → New repository secret
+```
 
-* No repositório → Settings → Secrets and variables → Actions → New repository secret
+Cadastrar os seguintes secrets, um por vez:
+
+| Name | Secret |
+|------|--------|
+| `EVIDENCE_SOURCE__weather_dw__project_id` | `weather-analytics-490113` |
+| `EVIDENCE_SOURCE__weather_dw__dataset` | `marts` |
+| `EVIDENCE_SOURCE__weather_dw__location` | `southamerica-east1` |
+| `EVIDENCE_SOURCE__weather_dw__client_email` | valor do campo `client_email` do arquivo `gcp-service-account.json` |
+| `EVIDENCE_SOURCE__weather_dw__private_key` | valor do campo `private_key` do arquivo `gcp-service-account.json` (incluindo os `\n`) |
+
+> O arquivo `gcp-service-account.json` está em `postgresql/secrets/`.
+
+#### Passo 3 — Disparar o deploy
+
+Faça um push na branch `main` alterando qualquer arquivo em `Weather-Analytics/evidence/`,
+ou acesse:
+
+```
+Repositório → Actions → Deploy Evidence to GitHub Pages → Run workflow
+```
+
+O site ficará disponível em:
+```
+https://<seu-usuario>.github.io/Analytics-Engineer/
+```
 
 
 ## Referências
