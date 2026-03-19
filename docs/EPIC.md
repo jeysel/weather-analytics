@@ -143,8 +143,8 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 
 ## 🔗 Referências
 
-**Dashboard ao vivo:** https://jeysel.github.io/Engenharia-Dados/  
-**Código fonte:** https://github.com/jeysel/Engenharia-Dados/tree/main/Weather-Analytics  
+**Dashboard ao vivo:** https://jeysel.github.io/Analytics-Engineer/
+**Código fonte:** https://github.com/jeysel/Analytics-Engineer/tree/main/Weather-Analytics  
 **Documentação dbt:** [schema.yml](../dbt/models/schema.yml)
 
 ---

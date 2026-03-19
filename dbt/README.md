@@ -41,7 +41,7 @@ dbt/
 ```powershell
 # 1. Configure o profiles.yml (Windows PowerShell)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dbt"
-Copy-Item "C:\Dev\Engenharia-Dados\Weather-Analytics\dbt\profiles.yml.example" `
+Copy-Item "C:\Dev\Analytics-Engineer\Weather-Analytics\dbt\profiles.yml.example" `
           "$env:USERPROFILE\.dbt\profiles.yml"
 ```
 
@@ -53,7 +53,7 @@ Copy-Item "C:\Dev\Engenharia-Dados\Weather-Analytics\dbt\profiles.yml.example" `
 Todos os comandos abaixo devem ser executados dentro da pasta `postgresql/`:
 
 ```bash
-cd C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
 
 # Validar conexao com o banco
 docker compose run --rm dbt-debug
@@ -78,7 +78,7 @@ docker compose run --rm dbt-run-marts
 ## Documentacao (http://localhost:8080)
 
 ```bash
-cd C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
 
 # Gera a documentacao
 docker compose run --rm dbt-docs-generate
@@ -90,7 +90,7 @@ docker compose run --rm --service-ports dbt-docs
 ## Executar em producao (BigQuery)
 
 ```bash
-cd C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
 
 DBT_TARGET=prod docker compose run --rm dbt-build
 ```

@@ -1,5 +1,5 @@
 deployment:
-  basePath: /Engenharia-Dados
+  basePath: /Analytics-Engineer
 
 plugins:
   components:

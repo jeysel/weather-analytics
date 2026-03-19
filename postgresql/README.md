@@ -37,7 +37,7 @@ postgresql/
 ### Passo 1 — Variaveis de ambiente
 
 ```bash
-cd C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
 cp .env.example .env
 ```
 
@@ -56,14 +56,14 @@ Edite o `.env` com suas credenciais de PostgreSQL, dbt e GCP.
 
 ```powershell
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dbt"
-Copy-Item "C:\Dev\Engenharia-Dados\Weather-Analytics\dbt\profiles.yml.example" `
+Copy-Item "C:\Dev\Analytics-Engineer\Weather-Analytics\dbt\profiles.yml.example" `
           "$env:USERPROFILE\.dbt\profiles.yml"
 ```
 
 ### Passo 4 — Build e subir os containers
 
 ```bash
-cd C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
 
 # Constroi as imagens (postgres + dbt)
 docker compose build

@@ -49,7 +49,7 @@ cp .env.example .env
 ### 3. Carregar as fontes de dados
 
 ```bash
-$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql\secrets\gcp-service-account.json" -> (Necessário para autenticar)
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json" -> (Necessário para autenticar)
 
 
 npm run sources

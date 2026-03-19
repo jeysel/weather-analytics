@@ -57,7 +57,7 @@ Busque e selecione: **BigQuery**
 * Caso ocorra erro de caractere ao informar o service account, siga os passos:
 * 1.1- No PowerShell ->
 $content = [System.IO.File]::ReadAllText(
-  "C:\Dev\Engenharia-Dados\Weather-Analytics\postgresql\secrets\gcp-service-account.json",
+  "C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json",
   [System.Text.Encoding]::UTF8
 ).TrimStart([char]0xFEFF)
 
