@@ -1,0 +1,13 @@
+# Fonte: PostgreSQL — target dev do dbt (desenvolvimento local)
+# Schema: dbt_dev_marts (gerado pelo dbt com +schema: marts, target dev)
+#
+# Credenciais configuradas via variáveis de ambiente no .env:
+#   EVIDENCE_SOURCE__weather_pg__host, port, database, user, password, schema
+#
+# Para usar esta fonte nas páginas, substitua weather_dw por weather_pg
+# nas queries SQL e ajuste os nomes das tabelas se necessário.
+#
+# Documentação: https://docs.evidence.dev/core-concepts/data-sources/#postgresql
+
+name: weather_pg
+type: postgres

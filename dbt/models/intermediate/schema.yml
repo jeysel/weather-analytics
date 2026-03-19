@@ -1,0 +1,89 @@
+version: 2
+
+models:
+
+ 
+  - name: int_weather__daily_enriched
+    description: >
+      **Camada intermediate do pipeline climático.**
+
+      Une `stg_weather__daily` com os metadados geográficos da seed `locations`
+      e calcula as médias móveis rolling 30 dias de temperatura e precipitação
+      via window functions.
+
+      Isola o enriquecimento de dados e os cálculos analíticos do mart,
+      mantendo cada camada com responsabilidade única.
+    tags: ["intermediate", "daily", "enriched"]
+    meta:
+      layer: intermediate
+      owner: analytics-engineering
+      upstream:
+        - stg_weather__daily
+        - seeds.locations
+
+    columns:
+      - name: location_id
+        description: "Identificador único da localização (chave de junção)."
+        tests: [not_null]
+
+      - name: date
+        description: "Data de referência da observação."
+        tests: [not_null]
+
+      - name: city_name
+        description: "Nome da cidade (da seed locations)."
+        tests: [not_null]
+
+      - name: state_name
+        description: "Nome do estado."
+
+      - name: country
+        description: "País."
+
+      - name: region
+        description: "Região geográfica do Brasil."
+
+      - name: latitude
+        description: "Latitude da estação."
+
+      - name: longitude
+        description: "Longitude da estação."
+
+      - name: altitude_m
+        description: "Altitude em metros."
+
+      - name: temp_max_c
+        description: "Temperatura máxima do dia em °C."
+
+      - name: temp_min_c
+        description: "Temperatura mínima do dia em °C."
+
+      - name: temp_avg_c
+        description: "Temperatura média do dia em °C."
+
+      - name: precipitation_mm
+        description: "Precipitação total do dia em mm."
+
+      - name: rain_mm
+        description: "Chuva total do dia em mm."
+
+      - name: wind_speed_max_kmh
+        description: "Velocidade máxima do vento em km/h."
+
+      - name: uv_index_max
+        description: "Índice UV máximo do dia."
+
+      - name: daylight_hours
+        description: "Horas de luz solar calculadas (sunset - sunrise)."
+
+      - name: temp_avg_30d_c
+        description: "Média móvel de 30 dias da temperatura média (window function)."
+
+      - name: precip_avg_30d_mm
+        description: "Média móvel de 30 dias da precipitação (window function)."
+
+      - name: _extracted_at
+        description: "Timestamp de extração da fonte."
+
+      - name: _loaded_at
+        description: "Timestamp de carga no staging."

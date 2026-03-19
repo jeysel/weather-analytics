@@ -1,0 +1,13 @@
+# Fonte: BigQuery — target prod do dbt
+# Dataset: marts (generate_schema_name usa apenas o custom_schema, sem prefixo)
+#
+# Credenciais configuradas via variáveis de ambiente no .env:
+#   EVIDENCE_SOURCE__weather_dw__project_id
+#   EVIDENCE_SOURCE__weather_dw__dataset
+#   EVIDENCE_SOURCE__weather_dw__client_email
+#   EVIDENCE_SOURCE__weather_dw__private_key
+#
+# Documentação: https://docs.evidence.dev/core-concepts/data-sources/#bigquery
+
+name: weather_dw
+type: bigquery

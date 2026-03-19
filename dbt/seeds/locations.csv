@@ -1,0 +1,19 @@
+location_id,city_name,state_name,state_code,country,region,latitude,longitude,altitude_m,population_class
+florianopolis,Florianópolis,Santa Catarina,SC,Brasil,Sul,-27.5954,-48.5480,3,large
+palhoca,Palhoça,Santa Catarina,SC,Brasil,Sul,-27.6444,-48.6694,5,medium
+santo_amaro_da_imperatriz,Santo Amaro da Imperatriz,Santa Catarina,SC,Brasil,Sul,-27.6936,-48.7697,14,small
+angelina,Angelina,Santa Catarina,SC,Brasil,Sul,-27.5697,-48.9658,460,small
+garopaba,Garopaba,Santa Catarina,SC,Brasil,Sul,-28.0248,-48.6186,5,small
+imbituba,Imbituba,Santa Catarina,SC,Brasil,Sul,-28.2400,-48.6639,5,small
+laguna,Laguna,Santa Catarina,SC,Brasil,Sul,-28.4844,-48.7812,5,small
+tubarao,Tubarão,Santa Catarina,SC,Brasil,Sul,-28.4671,-49.0092,9,medium
+criciuma,Criciúma,Santa Catarina,SC,Brasil,Sul,-28.6773,-49.3700,46,medium
+ararangua,Araranguá,Santa Catarina,SC,Brasil,Sul,-28.9344,-49.4866,16,small
+lages,Lages,Santa Catarina,SC,Brasil,Sul,-27.8153,-50.3261,916,medium
+campos_novos,Campos Novos,Santa Catarina,SC,Brasil,Sul,-27.4011,-51.2258,960,small
+joaçaba,Joaçaba,Santa Catarina,SC,Brasil,Sul,-27.1767,-51.5047,570,small
+balneario_camboriu,Balneário Camboriú,Santa Catarina,SC,Brasil,Sul,-26.9906,-48.6342,5,medium
+itajai,Itajaí,Santa Catarina,SC,Brasil,Sul,-26.9069,-48.6606,5,medium
+joinville,Joinville,Santa Catarina,SC,Brasil,Sul,-26.3045,-48.8487,14,large
+chapeco,Chapecó,Santa Catarina,SC,Brasil,Sul,-27.1006,-52.6156,670,medium
+sao_miguel_do_oeste,São Miguel do Oeste,Santa Catarina,SC,Brasil,Sul,-26.7278,-53.5167,655,small
