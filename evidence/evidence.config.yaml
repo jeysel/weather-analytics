@@ -1,5 +1,5 @@
 deployment:
-  basePath: /Analytics-Engineer
+  basePath: /Analytics-Engineer/Weather-Analytics
 
 plugins:
   components:
