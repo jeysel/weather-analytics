@@ -1,22 +1,20 @@
-# Airbyte — Configuração PostgreSQL → BigQuery
+## Pré-requisito
+---
+O container PostgreSQL deve estar rodando e as tabelas `raw.open_meteo_hourly`
+e `raw.open_meteo_daily` devem conter dados antes de configurar as connections.
+Ver `postgresql/README.md` — passos 1 a 10.
 
-O Airbyte já está instalado e rodando localmente.
-Nesta arquitetura, o Airbyte usa dois conectores nativos — sem configuração customizada:
+---
+
+# Airbyte — Configuração PostgreSQL → BigQuery
+O Airbyte usa dois conectores nativos — sem configuração customizada:
 
 - **Source**: PostgreSQL (lê `raw.*` populado pelo `collector.py`)
 - **Destination**: BigQuery (envia os dados ao Data Warehouse)
 
 Acesse: **http://localhost:9000**
 
----
 
-## Pré-requisito
-
-O container PostgreSQL deve estar rodando e as tabelas `raw.open_meteo_hourly`
-e `raw.open_meteo_daily` devem conter dados antes de configurar as connections.
-Ver `postgresql/README.md` — passos 1 a 10.
-
----
 
 ## 1. Configurar o Source — PostgreSQL
 

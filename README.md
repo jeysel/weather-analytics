@@ -94,19 +94,15 @@ O Airflow substitui o container `collector` em modo agendado e o `dbt build` man
 
 O `postgresql/docker-compose.yml` deve estar rodando antes de subir o Airflow, pois a rede `weather_network` é criada por ele.
 
-```bash
-# Confirmar que a rede existe
-docker network ls | grep weather
+```powershell
+# Confirmar que a rede existe (PowerShell)
+docker network ls | Select-String weather
+
+# Bash/WSL
+# docker network ls | grep weather
 ```
 
-### 1. Parar o collector agendado (Airflow assume o papel dele)
-
-```bash
-cd postgresql
-docker compose stop collector
-```
-
-### 2. Configurar variáveis de ambiente
+### 1. Configurar variáveis de ambiente
 
 ```bash
 cd airflow
@@ -118,10 +114,8 @@ Editar o `.env` e preencher:
 | Variável | Onde encontrar |
 |----------|----------------|
 | `POSTGRES_PASSWORD` | Mesmo valor do `postgresql/.env` |
-| `DBT_PROFILES_DIR` | Caminho absoluto para a pasta com `profiles.yml` (ex: `C:/Users/jeysel/.dbt`) |
+| `DBT_PROFILES_DIR` | Caminho absoluto para a pasta com `profiles.yml` (ex: `C:/Users/seu-usuario/.dbt`) |
 | `GCP_PROJECT_ID` | ID do projeto no Google Cloud Console |
-
-> **Atenção:** Use caminho absoluto em `DBT_PROFILES_DIR`, sem `~`. O Docker não expande til em volume mounts.
 
 ### 3. Subir o Airflow
 
@@ -130,24 +124,34 @@ cd airflow
 docker compose up -d
 ```
 
-Aguardar ~60 segundos e acessar: [http://localhost:8081](http://localhost:8081) — `admin` / `admin`
+Acessar: [http://localhost:8081](http://localhost:8081) — `admin` / `admin`
 
 ### 4. Verificar os containers
 
 ```bash
 docker compose ps
-# Esperado: airflow_webserver (healthy), airflow_scheduler (healthy), airflow_meta_postgres (healthy)
+
 ```
 
 ### 5. Executar as DAGs manualmente (primeiro teste)
 
-Via UI em [http://localhost:8081](http://localhost:8081), acionar as DAGs na ordem:
+Via UI em [http://localhost:8081]
+Acionar as DAGs na ordem:
 
-1. `dag_weather_collection` → botão ▶ (trigger DAG)
-2. Após conclusão: `dag_weather_transform` → botão ▶
+1. `dag_weather_collection` -> botão "Trigger DAG" 
+- O airflow vai executar na sequencia:
+collect_open_meteo, que rodou python3 /opt/collector/collector.py --mode once, para coletar os dados das 18 localidades via API Open-Meteo 
+- Inseriu no PostgreSQL (raw.open_meteo_daily e raw.open_meteo_hourly)
+- verify_rows_inserted — conectou no PostgreSQL e verificou se havia linhas com _extracted_at nos últimos 30 minutos em ambas as tabelas
 
-Ou via CLI:
 
+2. Após conclusão: `dag_weather_transform` -> botão "Trigger DAG" 
+- O airflow vai executar na sequencia:
+- dbt_seed — carrega seeds/locations.csv
+- dbt_run — materializa os modelos no BigQuery (target prod)
+- dbt_test — valida os 49 testes de qualidade
+
+PowerShell:
 ```bash
 # Trigger coleta
 docker exec airflow_scheduler airflow dags trigger dag_weather_collection
@@ -187,9 +191,7 @@ dag_weather_transform (07:30 BRT)
   └── dbt_test    BashOperator → dbt test  --target prod
 ```
 
-### Backfill de dados históricos (quando necessário)
-
-O Airflow não é necessário para backfill — usar o `collector.py` diretamente:
+### históricos de dados 
 
 ```bash
 docker exec weather_postgres \

@@ -5,7 +5,6 @@ name: weather-analytics
 #
 # Serviços permanentes (sobem com `docker compose up`):
 #   postgres  — banco de staging, inicializado automaticamente pelo entrypoint
-#   collector — coletor Open-Meteo (profile: collector)
 #
 # Serviços dbt (execute com `docker compose run --rm <serviço>`):
 #   dbt-debug        — valida conexões e profiles
@@ -77,36 +76,7 @@ services:
       start_period: 30s
     networks:
       - weather_net
-
-  # ── Coletor Open-Meteo ─────────────────────────────────────────────────────
-  collector:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: weather_collector
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      POSTGRES_HOST:        postgres
-      POSTGRES_DB:          ${POSTGRES_DB:-weather_staging}
-      POSTGRES_USER:        ${POSTGRES_USER:-weather_user}
-      POSTGRES_PASSWORD:    ${POSTGRES_PASSWORD:-weather_pass}
-      POSTGRES_PORT:        "5432"
-      GCP_PROJECT_ID:       ${GCP_PROJECT_ID}
-      GCP_CREDENTIALS_PATH: /run/secrets/gcp-service-account.json
-      BIGQUERY_DATASET:     ${BIGQUERY_DATASET:-weather_dw}
-      BIGQUERY_LOCATION:    ${BIGQUERY_LOCATION:-southamerica-east1}
-    volumes:
-      - ./secrets:/run/secrets:ro
-    command: ["python3", "/opt/collector/collector.py", "--mode", "scheduled"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - weather_net
-    profiles:
-      - collector
-
+  
   # ── dbt: instala pacotes (dbt_utils, dbt_expectations, audit_helper) ──────
   dbt-deps:
     <<: *dbt-base

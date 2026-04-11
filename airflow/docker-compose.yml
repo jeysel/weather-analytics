@@ -1,4 +1,4 @@
-name: weather-airflow
+name: weather-analytics
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Weather Analytics — Airflow
@@ -16,7 +16,7 @@ name: weather-airflow
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.1-python3.11
+  build: .   # usa o Dockerfile local que pré-instala requirements.txt na imagem
   env_file:
     - .env
   environment: &airflow-common-env
@@ -34,7 +34,6 @@ x-airflow-common: &airflow-common
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
-    - ./requirements.txt:/requirements.txt
     # Projeto dbt montado para o BashOperator executar `dbt build`
     - ../dbt:/opt/dbt
     # Collector montado para o BashOperator executar `python3 collector.py`
@@ -81,7 +80,6 @@ services:
     command:
       - -c
       - |
-        pip install --no-cache-dir -r /requirements.txt
         airflow db migrate
         airflow users create \
           --username admin \
@@ -117,8 +115,7 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     container_name: airflow_scheduler
-    command: >
-      bash -c "pip install --no-cache-dir -r /requirements.txt && airflow scheduler"
+    command: scheduler
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
       interval: 30s
