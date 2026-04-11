@@ -1,0 +1,147 @@
+name: weather-airflow
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Weather Analytics — Airflow
+#
+# Orquestra o pipeline completo:
+#   1. dag_weather_collection  — coleta Open-Meteo 4x/dia → PostgreSQL
+#   2. dag_weather_transform   — dbt build + test (BigQuery/prod) 1x/dia
+#
+# Pré-requisito: postgresql/docker-compose.yml deve estar rodando.
+#   A rede weather_network é criada por ele e referenciada aqui como externa.
+#
+# Subir:
+#   cd airflow && docker compose up -d
+# UI: http://localhost:8081  (admin / admin)
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1-python3.11
+  env_file:
+    - .env
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: America/Sao_Paulo
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # Credencial GCP para o dbt (prod → BigQuery)
+    GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp.json
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./requirements.txt:/requirements.txt
+    # Projeto dbt montado para o BashOperator executar `dbt build`
+    - ../dbt:/opt/dbt
+    # Collector montado para o BashOperator executar `python3 collector.py`
+    - ../postgresql/collector:/opt/collector
+    # Credencial GCP (mesma usada pelos containers dbt existentes)
+    - ../postgresql/secrets/gcp-service-account.json:/secrets/gcp.json:ro
+    # Profiles do dbt (mesmo caminho que os containers dbt já usam)
+    - ${DBT_PROFILES_DIR}:/root/.dbt:ro
+  networks:
+    - airflow_internal
+    - weather_net   # conecta ao PostgreSQL do projeto Weather-Analytics
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+
+services:
+
+  # ── Postgres exclusivo para metadados do Airflow ────────────────────────────
+  # SEPARADO do weather_postgres — não conflita com o banco de staging.
+  airflow-postgres:
+    image: postgres:15
+    container_name: airflow_meta_postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - airflow_internal
+
+  # ── Inicialização única ─────────────────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        pip install --no-cache-dir -r /requirements.txt
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@weather.local \
+          --password admin
+        echo "Airflow inicializado."
+    environment:
+      <<: *airflow-common-env
+    restart: on-failure
+
+  # ── Webserver ────────────────────────────────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver
+    command: webserver
+    ports:
+      - "8081:8080"   # 8081 no host (8080 já usado pelo dbt-docs quando necessário)
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ── Scheduler ────────────────────────────────────────────────────────────────
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    command: >
+      bash -c "pip install --no-cache-dir -r /requirements.txt && airflow scheduler"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  airflow-pg-data:
+    name: weather_airflow_pg_data
+
+networks:
+  # Rede interna: apenas Airflow ↔ airflow-postgres
+  airflow_internal:
+    name: weather_airflow_internal
+    driver: bridge
+
+  # Rede externa: criada pelo postgresql/docker-compose.yml
+  # Permite que o scheduler acesse o weather_postgres e rode dbt/collector
+  weather_net:
+    external: true
+    name: weather_network

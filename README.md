@@ -5,6 +5,7 @@
 
 ```
 Weather-Analytics/
+├── airflow/        # Orquestração: 2 DAGs (coleta 4x/dia + dbt diário)
 ├── postgresql/     # Container Ubuntu 24.04 + PostgreSQL 17 + app coletor
 ├── airbyte/        # Guia de configuração: Source PostgreSQL → Destination BigQuery
 ├── dbt/            # Transformações: staging → marts (dev: Postgres, prod: BigQuery)
@@ -16,7 +17,8 @@ Weather-Analytics/
 
 | Camada | Tecnologia | O que faz |
 |--------|-----------|-----------|
-| Coleta | `collector.py` (Python no container) | Busca API Open-Meteo → grava em `raw.*` |
+| Orquestração | **Airflow** (Docker) | Agenda coleta 4x/dia e dispara dbt diariamente |
+| Coleta | `collector.py` (Python) | Busca API Open-Meteo → grava em `raw.*` |
 | Staging | PostgreSQL 17 | Armazena dados raw e serve como Source para o Airbyte |
 | Ingest | Airbyte (conector nativo PostgreSQL → BigQuery) | Replica `raw.*` para BigQuery `weather_raw` |
 | Transform | dbt | Lê `weather_raw` (prod) ou `raw` (dev) → materializa marts |
@@ -78,6 +80,123 @@ pod-sweeper:
 16- Para desinstalar o airbyte local, Abra PowerShell de digite: abctl local uninstall --persisted 
 
 ```
+
+## ⚡ Airflow — Orquestração do Pipeline
+
+O Airflow substitui o container `collector` em modo agendado e o `dbt build` manual, centralizando o pipeline em duas DAGs:
+
+| DAG | Schedule | O que faz |
+|-----|----------|-----------|
+| `dag_weather_collection` | 00:30, 06:30, 12:30, 18:30 BRT | Coleta Open-Meteo → PostgreSQL + verifica inserção |
+| `dag_weather_transform` | 07:30 BRT (diário) | `dbt seed → dbt run → dbt test` no BigQuery (prod) |
+
+### Pré-requisito
+
+O `postgresql/docker-compose.yml` deve estar rodando antes de subir o Airflow, pois a rede `weather_network` é criada por ele.
+
+```bash
+# Confirmar que a rede existe
+docker network ls | grep weather
+```
+
+### 1. Parar o collector agendado (Airflow assume o papel dele)
+
+```bash
+cd postgresql
+docker compose stop collector
+```
+
+### 2. Configurar variáveis de ambiente
+
+```bash
+cd airflow
+cp .env.example .env
+```
+
+Editar o `.env` e preencher:
+
+| Variável | Onde encontrar |
+|----------|----------------|
+| `POSTGRES_PASSWORD` | Mesmo valor do `postgresql/.env` |
+| `DBT_PROFILES_DIR` | Caminho absoluto para a pasta com `profiles.yml` (ex: `C:/Users/jeysel/.dbt`) |
+| `GCP_PROJECT_ID` | ID do projeto no Google Cloud Console |
+
+> **Atenção:** Use caminho absoluto em `DBT_PROFILES_DIR`, sem `~`. O Docker não expande til em volume mounts.
+
+### 3. Subir o Airflow
+
+```bash
+cd airflow
+docker compose up -d
+```
+
+Aguardar ~60 segundos e acessar: [http://localhost:8081](http://localhost:8081) — `admin` / `admin`
+
+### 4. Verificar os containers
+
+```bash
+docker compose ps
+# Esperado: airflow_webserver (healthy), airflow_scheduler (healthy), airflow_meta_postgres (healthy)
+```
+
+### 5. Executar as DAGs manualmente (primeiro teste)
+
+Via UI em [http://localhost:8081](http://localhost:8081), acionar as DAGs na ordem:
+
+1. `dag_weather_collection` → botão ▶ (trigger DAG)
+2. Após conclusão: `dag_weather_transform` → botão ▶
+
+Ou via CLI:
+
+```bash
+# Trigger coleta
+docker exec airflow_scheduler airflow dags trigger dag_weather_collection
+
+# Trigger transformação
+docker exec airflow_scheduler airflow dags trigger dag_weather_transform
+```
+
+### 6. Monitorar logs
+
+```bash
+# Logs do scheduler (mostra execuções agendadas)
+docker logs -f airflow_scheduler
+
+# Logs de uma task específica via CLI
+docker exec airflow_scheduler \
+  airflow tasks logs dag_weather_collection collect_open_meteo <run_id>
+```
+
+### Parar o Airflow
+
+```bash
+cd airflow
+docker compose down
+```
+
+### Estrutura das DAGs
+
+```
+dag_weather_collection (00:30 / 06:30 / 12:30 / 18:30 BRT)
+  └── collect_open_meteo        BashOperator   → python3 collector.py --mode once
+  └── verify_rows_inserted      PythonOperator → verifica inserção no PostgreSQL
+
+dag_weather_transform (07:30 BRT)
+  └── dbt_seed    BashOperator → dbt seed  --target prod
+  └── dbt_run     BashOperator → dbt run   --target prod   [SLA: 30 min]
+  └── dbt_test    BashOperator → dbt test  --target prod
+```
+
+### Backfill de dados históricos (quando necessário)
+
+O Airflow não é necessário para backfill — usar o `collector.py` diretamente:
+
+```bash
+docker exec weather_postgres \
+  python3 /opt/collector/collector.py --mode backfill --start 2024-01-01 --end 2024-12-31
+```
+
+---
 
 ## 🐳 Configurar Container Docker para executar: PostgreSQL, integração com API Open-Meteo e DBT
 
