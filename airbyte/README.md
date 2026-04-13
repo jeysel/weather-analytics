@@ -1,20 +1,19 @@
-## Pré-requisito
----
-O container PostgreSQL deve estar rodando e as tabelas `raw.open_meteo_hourly`
-e `raw.open_meteo_daily` devem conter dados antes de configurar as connections.
-Ver `postgresql/README.md` — passos 1 a 10.
-
----
-
 # Airbyte — Configuração PostgreSQL → BigQuery
+
 O Airbyte usa dois conectores nativos — sem configuração customizada:
 
-- **Source**: PostgreSQL (lê `raw.*` populado pelo `collector.py`)
+- **Source**: PostgreSQL (lê `raw.*` populado pelo `collector.py` via Airflow)
 - **Destination**: BigQuery (envia os dados ao Data Warehouse)
 
 Acesse: **http://localhost:9000**
 
+## Pré-requisito
 
+O container PostgreSQL deve estar rodando e as tabelas `raw.open_meteo_hourly`
+e `raw.open_meteo_daily` devem conter dados antes de configurar as connections.
+Ver `postgresql/README.md`.
+
+---
 
 ## 1. Configurar o Source — PostgreSQL
 
@@ -25,16 +24,21 @@ Busque e selecione: **PostgreSQL**
 
 ### 1.2 Preencher os campos
 
-* Source name -> `weather-postgres-raw` 
-* Host -> `host.docker.internal` (Airbyte roda em Docker via abctl) 
-* Port -> `5432` 
-* Database -> `weather_staging` 
-* Optional fields -> `raw` 
-* Username -> `airbyte_user` 
-* Password -> `airbyte_pass_troque` -> Definido em: `postgresql/init/01_schemas.sql` — variável `airbyte_pass_troque` (altere antes de usar em produção) 
-* SSL mode -> `disable` (rede local) 
-* Advanced/Update method -> Selecione: **Detect Changes with Xmin System Column**
-* Selecione: Test and save —> o Airbyte testa a conexão automaticamente ao salvar.
+| Campo | Valor |
+|-------|-------|
+| Source name | `weather-postgres-raw` |
+| Host | `host.docker.internal` (Airbyte roda em Docker via abctl) |
+| Port | `5432` |
+| Database | `weather_staging` |
+| Optional fields (Schema) | `raw` |
+| Username | `airbyte_user` |
+| Password | `airbyte_pass_troque` (definido em `postgresql/init/01_schemas.sql` — altere antes de usar em produção) |
+| SSL mode | `disable` (rede local) |
+| Advanced / Update method | **Detect Changes with Xmin System Column** |
+
+Selecione: **Test and save**
+
+---
 
 ## 2. Configurar o Destination — BigQuery
 
@@ -45,91 +49,98 @@ Busque e selecione: **BigQuery**
 
 ### 2.2 Preencher os campos
 
-* Destination name -> `weather-bigquery` 
-* Project ID -> ID do seu projeto GCP (ex: `weather-analytics-490113`) 
-* Dataset Location -> `southamerica-east1` 
-* Default Dataset ID -> `weather_raw` 
-* Loading Method -> Batched Standard Inserts
-* Service Account Key JSON -> cole o conteúdo do arquivo `gcp-service-account.json` 
-## -------------------------------------------------------------------------------------------
-* Caso ocorra erro de caractere ao informar o service account, siga os passos:
-* 1.1- No PowerShell ->
-$content = [System.IO.File]::ReadAllText(
-  "C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json",
-  [System.Text.Encoding]::UTF8
-).TrimStart([char]0xFEFF)
+| Campo | Valor |
+|-------|-------|
+| Destination name | `weather-bigquery` |
+| Project ID | ID do seu projeto GCP (ex: `weather-analytics-490113`) |
+| Dataset Location | `southamerica-east1` |
+| Default Dataset ID | `weather_raw` |
+| Loading Method | Batched Standard Inserts |
+| Service Account Key JSON | cole o conteúdo do arquivo `gcp-service-account.json` |
+| Advanced / Transformation Query Run Type | `interactive` |
+| Advanced / Raw Table Dataset Name | `airbyte_raw` |
 
-$content | Set-Clipboard
+Selecione: **Test and save**
 
-* 1.2- No Airbyte ->
+> **Erro de caractere ao colar o Service Account?**
+> Execute no PowerShell para copiar o JSON limpo:
+>
+> ```powershell
+> $content = [System.IO.File]::ReadAllText(
+>   "C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json",
+>   [System.Text.Encoding]::UTF8
+> ).TrimStart([char]0xFEFF)
+>
+> $content | Set-Clipboard
+> ```
+>
+> No Airbyte: clique no campo → `Ctrl+A` → `Delete` → `Ctrl+V`
 
-Clique no campo Service Account Key JSON
-Ctrl+A para selecionar tudo
-Delete para limpar
-Ctrl+V para colar o conteúdo limpo
-## ----------------------------------------------------------------------------------------------
+---
 
-* Advanced/Transformation Query Run Type -> interactive
-* Advanced/Raw Table Dataset Name -> airbyte_raw
-* Selecione: Test and save —> o Airbyte testa a conexão automaticamente ao salvar.
-
-
-## 3. Criar a Connection hourly
+## 3. Criar a Connection — hourly
 
 **Menu**: Connections → New Connection
 
 ### 3.1 Source → Destination
 
-* Select an existing source -> Selecione: `weather-postgres-raw` 
-* Select an existing destination -> Selecione:  `weather-bigquery`
-
+- Select an existing source → `weather-postgres-raw`
+- Select an existing destination → `weather-bigquery`
 
 ### 3.2 Selecionar Schema
 
-* Selecione -> `open_meteo_hourly`
-* Select sync mode ->  Replicat Source
-* Next
+- Selecione → `open_meteo_hourly`
+- Select sync mode → Replicate Source
+- Next
 
+### 3.3 Configurar a Connection
 
-### 3.3 Configure a connection
+| Campo | Valor |
+|-------|-------|
+| Connection name | `postgres-raw-hourly-to-bigquery` |
+| Schedule type | `Scheduled` |
+| Replication frequency | `Every 6 hours` |
+| Destination namespace | `Source-defined` |
+| Stream prefix | *(deixar vazio)* |
+| When the source schema changes | `Propagate field changes only` |
 
-* Connection name -> `postgres-raw-hourly-to-bigquery` 
-* Schedule type -> `Scheduled` 
-* Replication frequency -> `Every 6 hours` 
-* Destination namespace -> `Source-defined` 
-* Stream prefix -> *(deixar vazio)* 
-* Advanced settings/When the source schema changes, I want to: -> `Propagate field changes only` 
-* Finish & Sync
+Selecione: **Finish & Sync**
 
-## 4. Criar a Connection daily
+---
+
+## 4. Criar a Connection — daily
 
 **Menu**: Connections → New Connection
 
 ### 4.1 Source → Destination
 
-* Select an existing source -> Selecione: `weather-postgres-raw` 
-* Select an existing destination -> Selecione:  `weather-bigquery`
+- Select an existing source → `weather-postgres-raw`
+- Select an existing destination → `weather-bigquery`
 
 ### 4.2 Selecionar Schema
 
-* Selecione -> `open_meteo_daily`
-* Select sync mode ->  Replicat Source
-* Next
+- Selecione → `open_meteo_daily`
+- Select sync mode → Replicate Source
+- Next
 
-### 4.3 Configure a connection
+### 4.3 Configurar a Connection
 
-* Connection name -> `postgres-raw-daily-to-bigquery` 
-* Schedule type -> `Scheduled` 
-* Replication frequency -> `Every 24 hours` 
-* Destination namespace -> `Source-defined` 
-* Stream prefix -> *(deixar vazio)* 
-* Advanced settings/When the source schema changes, I want to: -> `Propagate field changes only` 
-* Finish & Sync
+| Campo | Valor |
+|-------|-------|
+| Connection name | `postgres-raw-daily-to-bigquery` |
+| Schedule type | `Scheduled` |
+| Replication frequency | `Every 24 hours` |
+| Destination namespace | `Source-defined` |
+| Stream prefix | *(deixar vazio)* |
+| When the source schema changes | `Propagate field changes only` |
+
+Selecione: **Finish & Sync**
+
+---
 
 ## 5. Executar sync manual e verificar
 
-* Connections
-* Selecionar a conexão -> Sync now
+Connections → selecionar a conexão → **Sync now**
 
 Para confirmar no BigQuery, execute no console GCP:
 
@@ -139,4 +150,3 @@ FROM `weather-analytics-490113.raw.open_meteo_daily`
 GROUP BY 1
 ORDER BY 1;
 ```
-

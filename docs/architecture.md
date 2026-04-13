@@ -9,35 +9,51 @@
             │  HTTP GET 4x/dia (00:30, 06:30, 12:30, 18:30 BRT)
             ▼
  ┌──────────────────────────────────────────────────────┐
+ │   Airflow (Docker — LocalExecutor)                   │
+ │                                                      │
+ │   dag_weather_collection  ──► collector.py --once    │
+ │   dag_weather_transform   ──► dbt seed/run/test      │
+ └──────────────────┬───────────────────────────────────┘
+                    │
+                    ▼
+ ┌──────────────────────────────────────────────────────┐
  │   container: weather_postgres (Ubuntu 24.04 + PG 17) │
  │                                                      │
  │   collector.py        UPSERT                         │
- │   (Python + schedule) ──────► raw.open_meteo_hourly  │
- │                               raw.open_meteo_daily   │
- └──────────────────────────────┬───────────────────────┘
-                                │
-                                │  Airbyte (conector nativo PostgreSQL)
-                                │  Source: raw.* | Incremental + _extracted_at
-                                │  Schedule: 6h / 24h
-                                ▼
-                 ┌──────────────────────────────┐
-                 │   BigQuery — dataset          │
-                 │   weather_raw                 │
-                 │                               │
-                 │   open_meteo_hourly           │
-                 │   open_meteo_daily            │
-                 └──────────────┬────────────────┘
-                                │
-                                │  dbt (target: prod)
-                                │  Sources: weather_raw.*
-                                ▼
-                 ┌──────────────────────────────┐
-                 │   BigQuery — dataset          │
-                 │   weather_dw                  │
-                 │                               │
-                 │   staging.*  (views)          │
-                 │   marts.*    (tables parti.)  │
-                 └──────────────────────────────┘
+ │   (Python)      ──────► raw.open_meteo_hourly        │
+ │                          raw.open_meteo_daily         │
+ └──────────────────────────┬───────────────────────────┘
+                            │
+                            │  Airbyte (conector nativo PostgreSQL)
+                            │  Source: raw.* | Incremental + _extracted_at
+                            │  Schedule: 6h / 24h
+                            ▼
+             ┌──────────────────────────────┐
+             │   BigQuery — dataset          │
+             │   weather_raw                 │
+             │                               │
+             │   open_meteo_hourly           │
+             │   open_meteo_daily            │
+             └──────────────┬────────────────┘
+                            │
+                            │  dbt (target: prod)
+                            │  Sources: weather_raw.*
+                            ▼
+             ┌──────────────────────────────┐
+             │   BigQuery — dataset          │
+             │   weather_dw                  │
+             │                               │
+             │   staging.*  (views)          │
+             │   marts.*    (tables parti.)  │
+             └──────────────┬────────────────┘
+                            │
+                            ▼
+             ┌──────────────────────────────┐
+             │   Evidence.dev               │
+             │   GitHub Pages               │
+             │                               │
+             │   Dashboard público ao vivo  │
+             └──────────────────────────────┘
 ```
 
 ## Dois targets do dbt
@@ -55,23 +71,35 @@ A variável `DBT_SOURCE_DATABASE` controla qual banco o dbt usa como source:
 
 | Pasta | Responsabilidade |
 |-------|-----------------|
-| `postgresql/` | Container PG17 + app coletor + setup manual documentado |
+| `airflow/` | Orquestração: 2 DAGs agendando coleta e transformações |
+| `postgresql/` | Container PG17 + app coletor + setup documentado |
 | `airbyte/` | Guia de configuração Source (PostgreSQL) → Destination (BigQuery) |
 | `dbt/` | Transformações staging → marts, testes, documentação |
+| `evidence/` | Dashboards interativos + CI/CD via GitHub Actions |
 
 ## Estrutura de arquivos
 
 ```
-weather_pipeline/
+Weather-Analytics/
 ├── README.md
 ├── docs/
-│   └── architecture.md
+│   ├── architecture.md
+│   ├── EPIC.md
+│   ├── FEATURES.md
+│   └── USER-STORIES.md
+│
+├── airflow/
+│   ├── Dockerfile                   # Airflow 2.9.1 + dbt-bigquery pré-instalado
+│   ├── docker-compose.yml           # services: webserver + scheduler + postgres
+│   ├── .env.example
+│   └── dags/
+│       ├── dag_weather_collection.py  # coleta 4x/dia + verificação PostgreSQL
+│       └── dag_weather_transform.py   # dbt seed → run → test (prod)
 │
 ├── postgresql/
 │   ├── Dockerfile                   # Ubuntu 24.04 + PG17 + Python
-│   ├── docker-compose.yml           # services: postgres + collector
+│   ├── docker-compose.yml           # services: postgres + dbt-*
 │   ├── .env.example
-│   ├── README.md                    # 11 passos de setup manual
 │   ├── config/
 │   │   ├── postgresql.conf.append
 │   │   └── pg_hba.conf.append
@@ -85,24 +113,33 @@ weather_pipeline/
 ├── airbyte/
 │   └── README.md                    # Source: PostgreSQL → Destination: BigQuery
 │
-└── dbt/
-    ├── Dockerfile
-    ├── docker-compose.yml           # services por comando dbt
-    ├── dbt_project.yml
-    ├── packages.yml
-    ├── profiles.yml.example
-    ├── models/
-    │   ├── staging/
-    │   │   ├── sources.yml          # source parametrizado dev/prod
-    │   │   ├── schema.yml
-    │   │   ├── stg_weather__hourly.sql
-    │   │   └── stg_weather__daily.sql
-    │   └── marts/
-    │       ├── schema.yml
-    │       ├── mart_climate__daily_facts.sql
-    │       └── mart_climate__alerts.sql
-    ├── tests/                       # 5 testes personalizados
-    ├── macros/
-    └── seeds/
-        └── locations.csv
+├── dbt/
+│   ├── Dockerfile
+│   ├── dbt_project.yml
+│   ├── packages.yml
+│   ├── profiles.yml.example
+│   ├── models/
+│   │   ├── staging/
+│   │   │   ├── sources.yml          # source parametrizado dev/prod
+│   │   │   ├── schema.yml
+│   │   │   ├── stg_weather__hourly.sql
+│   │   │   └── stg_weather__daily.sql
+│   │   └── marts/
+│   │       ├── schema.yml
+│   │       ├── mart_climate__daily_facts.sql
+│   │       └── mart_climate__alerts.sql
+│   ├── tests/                       # 5 testes personalizados
+│   ├── macros/
+│   └── seeds/
+│       └── locations.csv
+│
+└── evidence/
+    ├── pages/
+    │   ├── index.md                 # Visão geral + KPIs
+    │   ├── temperatura.md
+    │   ├── precipitacao.md
+    │   ├── alertas.md
+    │   └── cidades/[location_id].md # Drill-down por localidade
+    └── .github/workflows/
+        └── deploy.yml               # CI/CD → GitHub Pages
 ```

@@ -127,7 +127,7 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 **Data Engineering:**
 - Pipeline ELT (Airbyte)
 - Cloud data warehouse (BigQuery)
-- Orquestração (GitHub Actions)
+- Orquestração (Airflow + GitHub Actions)
 
 **Product Ownership:**
 - Definição valor negócio
@@ -149,5 +149,5 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 
 ---
 
-**Última atualização:** Março 2026  
+**Última atualização:** Abril 2026  
 **Status Epic:** ✅ Concluído (em produção)

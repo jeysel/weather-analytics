@@ -31,14 +31,15 @@ Coletar dados climáticos de múltiplas localidades brasileiras via API Open-Met
 
 **Stack:**
 - Python (requests, psycopg2)
-- PostgreSQL 14
+- PostgreSQL 17
 - Docker Compose
+- Airflow (orquestração da coleta)
 - Airbyte (PostgreSQL → BigQuery connector)
 
 **Arquivos:**
-- `postgresql/collect_weather.py` - Script coleta API
-- `docker-compose.yml` - Orquestração containers
-- `airbyte/config.json` - Configuração sync
+- `postgresql/collector/collector.py` - Script coleta API
+- `airflow/dags/dag_weather_collection.py` - DAG de orquestração
+- `airbyte/README.md` - Configuração sync
 
 **Testes:**
 - [x] Teste unitário: parsing resposta API
@@ -189,4 +190,4 @@ Expor dados via API REST para consumo externo.
 
 ---
 
-**Última atualização:** Março 2026
+**Última atualização:** Abril 2026

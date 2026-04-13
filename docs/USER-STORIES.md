@@ -29,8 +29,7 @@ And dados devem ser inseridos em PostgreSQL tabela raw_weather
 And logs devem registrar timestamp e status (sucesso/falha)
 ```
 
-**Implementação:** `postgresql/collect_weather.py` (função `collect_temperature`)  
-**Testes:** `tests/test_api_collection.py`
+**Implementação:** `postgresql/collector/collector.py`
 
 ---
 
@@ -49,7 +48,7 @@ And precipitação deve ser armazenada em mm (milímetros)
 And valores null devem ser permitidos (dias sem chuva)
 ```
 
-**Implementação:** `postgresql/collect_weather.py` (função `collect_precipitation`)
+**Implementação:** `postgresql/collector/collector.py`
 
 ---
 
@@ -313,32 +312,5 @@ And URL público deve refletir mudanças em < 3min após success
 
 ---
 
-**Última atualização:** Março 2026  
+**Última atualização:** Abril 2026  
 **User Stories implementadas:** 10/12 (83%)
-```
-
----
-
-## 📋 CHECKLIST EXECUÇÃO
-
-### **HOJE (OPÇÃO C - 30min):**
-```
-[ ] 1. Abrir README.md Weather-Analytics
-[ ] 2. Copiar seção "📋 Metodologia Ágil" (acima)
-[ ] 3. Colar após seção "Aprendizados"
-[ ] 4. Ajustar formatação (se necessário)
-[ ] 5. Commit: "docs: adicionar metodologia ágil (BDD + Scrum)"
-[ ] 6. Push
-[ ] 7. Verificar renderização GitHub
-```
-
-### **AMANHÃ (OPÇÃO B - 2-3h):**
-```
-[ ] 1. Criar pasta `/docs` em Weather-Analytics
-[ ] 2. Criar arquivo EPIC.md (copiar conteúdo acima)
-[ ] 3. Criar arquivo FEATURES.md (copiar conteúdo acima)
-[ ] 4. Criar arquivo USER-STORIES.md (copiar conteúdo acima)
-[ ] 5. Atualizar README principal (adicionar link para /docs)
-[ ] 6. Commit: "docs: adicionar documentação Scrum completa (Epic/Features/US)"
-[ ] 7. Push
-[ ] 8. Verificar estrutura GitHub

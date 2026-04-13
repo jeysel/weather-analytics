@@ -2,8 +2,7 @@
 
 Container Ubuntu 24.04 + PostgreSQL 17. Centraliza todos os servicos do pipeline:
 
-- **postgres** — banco de staging; o `collector/` busca a API Open-Meteo e grava em `raw.*`
-- **collector** — coletor agendado (profile: `collector`)
+- **postgres** — banco de staging; o Airflow aciona o `collector/` que busca a API Open-Meteo e grava em `raw.*`
 - **dbt-*** — servicos de transformacao (run, test, seed, docs etc.)
 
 O cluster PostgreSQL é inicializado automaticamente na primeira execucao
@@ -15,7 +14,7 @@ O cluster PostgreSQL é inicializado automaticamente na primeira execucao
 postgresql/
 ├── Dockerfile
 ├── entrypoint.sh               # Inicializa o cluster na 1a execucao
-├── docker-compose.yml          # Todos os servicos: postgres + collector + dbt
+├── docker-compose.yml          # Todos os servicos: postgres + dbt
 ├── .env.example
 ├── secrets/                    # Credenciais GCP (ignorado pelo git)
 │   └── gcp-service-account.json
@@ -71,17 +70,13 @@ docker compose build
 # Sobe o banco (inicializa cluster automaticamente na 1a vez)
 docker compose up -d postgres
 
-# Sobe o coletor
-docker compose --profile collector up -d collector
-
-# Configuração e carga com o coletor
-postgresql\collector\README.md
+# A coleta é gerenciada pelo Airflow (ver airflow/README.md)
 ```
 
 ### Passo 5 — Executar o dbt
 
-> Execute o coletor (`collector/README.md`) antes de continuar.
 > A imagem dbt já foi construída no Passo 4 (`docker compose build`).
+> Para popular o banco com dados, acione a DAG `dag_weather_collection` no Airflow antes de continuar.
 
 ```bash
 # 1. Instalar pacotes dbt (apenas na 1ª vez ou quando packages.yml mudar)
@@ -139,7 +134,7 @@ docker exec -it weather_postgres psql -U weather_user -d weather_staging
 docker exec weather_postgres tail -f /var/log/postgresql/postgresql-$(date +%Y-%m-%d).log
 
 # Parar tudo
-docker compose --profile collector down
+docker compose down
 
 # Remover volumes -- APAGA TODOS OS DADOS
 docker compose down -v

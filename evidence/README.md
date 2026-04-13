@@ -34,8 +34,7 @@ e gera um site estático com dashboards interativos.
 ### 1. Instalar dependências
 
 ```bash
-cd \Weather-Analytics\evidence
-cd evidence
+cd Weather-Analytics/evidence
 npm install
 ```
 
@@ -48,10 +47,12 @@ cp .env.example .env
 
 ### 3. Carregar as fontes de dados
 
+```powershell
+# Necessário para autenticar no BigQuery (PowerShell)
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json"
+```
+
 ```bash
-$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql\secrets\gcp-service-account.json" -> (Necessário para autenticar)
-
-
 npm run sources
 ```
 
