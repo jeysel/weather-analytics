@@ -1,15 +1,15 @@
 # Weather Analytics Pipeline
 
-Open-Meteo API → collector.py (PostgreSQL) → Airbyte → BigQuery → dbt → BigQuery DW
+Open-Meteo API → collector.py (PostgreSQL) → Airflow → BigQuery → dbt → BigQuery DW
 
 ## Arquitetura em Camadas
 
 | Camada | Tecnologia | O que faz |
 |--------|-----------|-----------|
-| Orquestração | **Airflow** (Docker) | Agenda coleta 4x/dia e dispara dbt diariamente |
+| Orquestração | **Airflow** (Docker) | Agenda coleta, ingestão e transformação |
 | Coleta | `collector.py` (Python) | Busca API Open-Meteo → grava em `raw.*` |
-| Staging | PostgreSQL 17 | Armazena dados raw e serve como Source para o Airbyte |
-| Ingest | Airbyte (conector nativo PostgreSQL → BigQuery) | Replica `raw.*` para BigQuery `weather_raw` |
+| Staging | PostgreSQL 17 | Armazena dados raw |
+| Ingest | `dag_weather_ingest` (Python + BigQuery SDK) | Replica `raw.*` do PostgreSQL para o BigQuery de forma incremental |
 | Transform | dbt | Lê `weather_raw` (prod) ou `raw` (dev) → materializa marts |
 | Warehouse | BigQuery | Dataset `weather_dw` com tabelas analíticas finais |
 | Visualização | Evidence.dev | Dashboards interativos gerados a partir dos marts do dbt |
@@ -18,9 +18,8 @@ Open-Meteo API → collector.py (PostgreSQL) → Airbyte → BigQuery → dbt �
 
 ```
 Weather-Analytics/
-├── airflow/        # Orquestração: 2 DAGs (coleta 4x/dia + dbt diário)
+├── airflow/        # Orquestração: 3 DAGs (coleta + ingestão + transformação)
 ├── postgresql/     # Container Ubuntu 24.04 + PostgreSQL 17 + app coletor
-├── airbyte/        # Guia de configuração: Source PostgreSQL → Destination BigQuery
 ├── dbt/            # Transformações: staging → marts (dev: Postgres, prod: BigQuery)
 ├── evidence/       # Dashboards interativos gerados a partir dos marts do dbt
 └── docs/           # Arquitetura e decisões
@@ -36,43 +35,6 @@ Weather-Analytics/
 
 ---
 
-## 🐳 Configurar o Airbyte localmente (Windows 11)
-
-Acesse a documentação oficial: https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart
-
-```powershell
-# Criar arquivo de configuração
-@"
-pod-sweeper:
-  enabled: false
-"@ | Out-File -FilePath "$env:USERPROFILE\airbyte-values.yaml" -Encoding utf8
-
-# Instalar (escolha uma versão)
-# Opção A — Airbyte 1.7.1 (estável)
-abctl local install --chart-version 2.0.7 --port 9000
-
-# Opção B — Airbyte 1.8.5
-abctl local install --chart-version 2.0.17 --port 9000
-```
-
-Passos de instalação do ABCTL (Windows):
-
-```
-1- "Overview" -> Install ABCTL
-2- Overview/Install abctl -> Aba Windows
-3- Download ABCTL -> opção "Download windows"
-4- Extrair o conteúdo em C:\airbyte (sugestão)
-5- Acessar: Environment Variables -> System variables -> Path (Edit) -> New
-6- Colar o caminho da pasta extraída -> OK
-7- No PowerShell: abctl version (deve retornar a versão)
-8- Executar: abctl local install --port 9000 --chart-version 1.2.0 --values "$env:USERPROFILE\airbyte-values.yaml"
-9- Acessar http://localhost:9000/setup e configurar email e organização
-10- No PowerShell: abctl local credentials (copiar a senha gerada)
-11- Acessar http://localhost:9000 e fazer login com email + senha gerada
-12- Para desinstalar: abctl local uninstall --persisted
-```
-
----
 
 ## 🐳 PostgreSQL + Collector
 
@@ -92,11 +54,12 @@ docker exec weather_postgres psql -U weather_user -d weather_staging \
 
 ## ⚡ Airflow — Orquestração do Pipeline
 
-O Airflow centraliza o pipeline em duas DAGs, substituindo o agendamento manual:
+O Airflow centraliza o pipeline completo em três DAGs:
 
 | DAG | Schedule | O que faz |
 |-----|----------|-----------|
 | `dag_weather_collection` | 00:30, 06:30, 12:30, 18:30 BRT | Coleta Open-Meteo → PostgreSQL + verifica inserção |
+| `dag_weather_ingest` | 01:00, 07:00, 13:00, 19:00 BRT | PostgreSQL → BigQuery (incremental via SDK) |
 | `dag_weather_transform` | 07:30 BRT (diário) | `dbt seed → dbt run → dbt test` no BigQuery (prod) |
 
 ### 1. Pré-requisito
@@ -145,19 +108,27 @@ Esperado: `airflow_webserver (healthy)`, `airflow_scheduler (healthy)`, `airflow
 Via UI em [http://localhost:8081](http://localhost:8081), acionar na ordem:
 
 1. `dag_weather_collection` → botão "Trigger DAG"
-   - `collect_open_meteo` — coleta as 18 localidades via API Open-Meteo e insere no PostgreSQL (`raw.open_meteo_daily` e `raw.open_meteo_hourly`)
+   - `collect_open_meteo` — coleta os 295 municípios de SC via API Open-Meteo e insere no PostgreSQL (`raw.open_meteo_daily` e `raw.open_meteo_hourly`)
    - `verify_rows_inserted` — verifica se há linhas com `_extracted_at` nos últimos 30 minutos
 
-2. Após conclusão: `dag_weather_transform` → botão "Trigger DAG"
+2. Após conclusão: `dag_weather_ingest` → botão "Trigger DAG"
+   - `ingest_daily` — copia `raw.open_meteo_daily` do PostgreSQL para o BigQuery (incremental)
+   - `ingest_hourly` — copia `raw.open_meteo_hourly` do PostgreSQL para o BigQuery (incremental)
+   - `verify_ingest` — verifica se ambas as tabelas têm dados recentes no BigQuery
+
+3. Após conclusão: `dag_weather_transform` → botão "Trigger DAG"
    - `dbt_seed` — carrega `seeds/locations.csv`
    - `dbt_run` — materializa os modelos no BigQuery (target prod)
-   - `dbt_test` — valida os 49 testes de qualidade
+   - `dbt_test` — valida os testes de qualidade
 
 Via CLI (PowerShell):
 
 ```powershell
 # Trigger coleta
 docker exec airflow_scheduler airflow dags trigger dag_weather_collection
+
+# Trigger ingestão
+docker exec airflow_scheduler airflow dags trigger dag_weather_ingest
 
 # Trigger transformação
 docker exec airflow_scheduler airflow dags trigger dag_weather_transform
@@ -187,6 +158,11 @@ docker compose down
 dag_weather_collection (00:30 / 06:30 / 12:30 / 18:30 BRT)
   └── collect_open_meteo        BashOperator   → python3 collector.py --mode once
   └── verify_rows_inserted      PythonOperator → verifica inserção no PostgreSQL
+
+dag_weather_ingest (01:00 / 07:00 / 13:00 / 19:00 BRT)
+  ├── ingest_daily              PythonOperator → PostgreSQL raw.open_meteo_daily → BigQuery
+  ├── ingest_hourly             PythonOperator → PostgreSQL raw.open_meteo_hourly → BigQuery
+  └── verify_ingest             PythonOperator → verifica dados recentes no BigQuery
 
 dag_weather_transform (07:30 BRT)
   └── dbt_seed    BashOperator → dbt seed  --target prod
@@ -227,12 +203,6 @@ $env:DBT_TARGET="prod"; $env:DBT_SOURCE_DATABASE="weather-analytics-490113"; $en
 
 ---
 
-## 📊 Configurar o Airbyte (ver `airbyte/README.md`)
-
-Acessar [http://localhost:9000](http://localhost:9000) e seguir o guia: `Weather-Analytics/airbyte/README.md`
-
----
-
 ## 📈 Visualizar os Dashboards (ver `evidence/README.md`)
 
 ```bash
@@ -267,7 +237,7 @@ Criar pipeline analytics end-to-end para monitoramento climático em tempo real 
 
 #### Feature 2: Pipeline ELT com Data Quality
 **Objetivo:** Transformar dados brutos em modelo analytics confiável
-**Tecnologia:** Airbyte + BigQuery + dbt
+**Tecnologia:** Airflow + BigQuery SDK + dbt
 **Resultado:**
 - Camadas staging → intermediate → marts
 - 49 testes automatizados (data quality)

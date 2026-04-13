@@ -21,7 +21,7 @@ Todas User Stories seguem formato:
 #### Acceptance Criteria
 ```gherkin
 Given API Open-Meteo está disponível
-And lista de 18 coordenadas brasileiras está configurada
+And lista de 295 municípios de Santa Catarina está configurada
 When executar script de coleta diária
 Then dados temperatura devem ser coletados para todas localidades
 And cada registro deve conter: cidade, data, temp_min, temp_max, temp_avg
@@ -60,16 +60,16 @@ And valores null devem ser permitidos (dias sem chuva)
 
 #### Acceptance Criteria
 ```gherkin
-Given Airbyte connector PostgreSQL → BigQuery configurado
+Given DAG dag_weather_ingest está configurada e ativa
 When novos dados forem inseridos em PostgreSQL
-Then Airbyte deve sincronizar para BigQuery (latência < 1h)
-And schema BigQuery deve espelhar PostgreSQL
-And sync deve ser incremental (não full refresh)
-And logs Airbyte devem registrar sucesso/falha
+Then DAG deve sincronizar para BigQuery (latência < 1h)
+And carga deve ser incremental baseada em _extracted_at
+And task verify_ingest deve confirmar dados recentes no BigQuery
+And logs do Airflow devem registrar sucesso/falha
 ```
 
-**Implementação:** Airbyte UI config + `airbyte/config.json`  
-**Monitoramento:** Airbyte dashboard
+**Implementação:** `airflow/dags/dag_weather_ingest.py`  
+**Monitoramento:** Airflow UI — http://localhost:8081
 
 ---
 

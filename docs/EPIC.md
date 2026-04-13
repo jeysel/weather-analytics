@@ -85,7 +85,7 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 
 | Métrica | Target | Atual | Status |
 |---------|--------|-------|--------|
-| Localidades monitoradas | 15+ | 18 | ✅ |
+| Localidades monitoradas | 15+ | 295 (SC) | ✅ |
 | Testes automatizados | 40+ | 49 | ✅ |
 | Freshness dados | < 24h | ~12h | ✅ |
 | Uptime dashboard | > 95% | 99.8% | ✅ |

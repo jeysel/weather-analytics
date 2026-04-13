@@ -9,7 +9,7 @@ Responsabilidade:
   Substitui o `docker compose run --rm dbt-build` manual.
 # ─── Comando base dbt ────────────────────────────────────────────────────────
 # /opt/dbt é o project-dir (montado via volume)
-# /root/.dbt é o profiles-dir (montado via ${DBT_PROFILES_DIR})
+# /home/airflow/.dbt é o profiles-dir (montado via ${DBT_PROFILES_DIR})
 """
 
 import os
@@ -19,7 +19,7 @@ from airflow import DAG
 from airflow.operators.bash import BashOperator
 
 
-DBT_CMD = "cd /opt/dbt && dbt {subcommand} --profiles-dir /root/.dbt --target prod"
+DBT_CMD = "cd /opt/dbt && dbt {subcommand} --profiles-dir /home/airflow/.dbt --target prod --log-path /tmp/dbt-logs --target-path /tmp/dbt-target"
 
 # ─── Variáveis de ambiente compartilhadas pelos BashOperators ───────────────
 DBT_ENV = {

@@ -26,6 +26,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DEFAULT_TIMEZONE: America/Sao_Paulo
+    AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: America/Sao_Paulo
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     # Credencial GCP para o dbt (prod → BigQuery)
@@ -41,7 +42,7 @@ x-airflow-common: &airflow-common
     # Credencial GCP (mesma usada pelos containers dbt existentes)
     - ../postgresql/secrets/gcp-service-account.json:/secrets/gcp.json:ro
     # Profiles do dbt (mesmo caminho que os containers dbt já usam)
-    - ${DBT_PROFILES_DIR}:/root/.dbt:ro
+    - ${DBT_PROFILES_DIR}:/home/airflow/.dbt:ro
   networks:
     - airflow_internal
     - weather_net   # conecta ao PostgreSQL do projeto Weather-Analytics

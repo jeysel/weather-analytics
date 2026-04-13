@@ -24,9 +24,8 @@
  │                          raw.open_meteo_daily         │
  └──────────────────────────┬───────────────────────────┘
                             │
-                            │  Airbyte (conector nativo PostgreSQL)
-                            │  Source: raw.* | Incremental + _extracted_at
-                            │  Schedule: 6h / 24h
+                            │  dag_weather_ingest (Airflow + BigQuery SDK)
+                            │  Incremental por _extracted_at | 4x/dia
                             ▼
              ┌──────────────────────────────┐
              │   BigQuery — dataset          │
@@ -71,9 +70,8 @@ A variável `DBT_SOURCE_DATABASE` controla qual banco o dbt usa como source:
 
 | Pasta | Responsabilidade |
 |-------|-----------------|
-| `airflow/` | Orquestração: 2 DAGs agendando coleta e transformações |
+| `airflow/` | Orquestração: 3 DAGs (coleta, ingestão PostgreSQL→BigQuery, transformação) |
 | `postgresql/` | Container PG17 + app coletor + setup documentado |
-| `airbyte/` | Guia de configuração Source (PostgreSQL) → Destination (BigQuery) |
 | `dbt/` | Transformações staging → marts, testes, documentação |
 | `evidence/` | Dashboards interativos + CI/CD via GitHub Actions |
 
@@ -94,6 +92,7 @@ Weather-Analytics/
 │   ├── .env.example
 │   └── dags/
 │       ├── dag_weather_collection.py  # coleta 4x/dia + verificação PostgreSQL
+│       ├── dag_weather_ingest.py      # PostgreSQL → BigQuery incremental (4x/dia)
 │       └── dag_weather_transform.py   # dbt seed → run → test (prod)
 │
 ├── postgresql/
@@ -109,9 +108,6 @@ Weather-Analytics/
 │   └── collector/
 │       ├── collector.py             # busca API → upsert raw.*
 │       └── README.md
-│
-├── airbyte/
-│   └── README.md                    # Source: PostgreSQL → Destination: BigQuery
 │
 ├── dbt/
 │   ├── Dockerfile

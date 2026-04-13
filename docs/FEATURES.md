@@ -30,16 +30,15 @@ Coletar dados climáticos de múltiplas localidades brasileiras via API Open-Met
 ### 🔧 Implementação Técnica
 
 **Stack:**
-- Python (requests, psycopg2)
+- Python (requests, psycopg2, google-cloud-bigquery)
 - PostgreSQL 17
 - Docker Compose
-- Airflow (orquestração da coleta)
-- Airbyte (PostgreSQL → BigQuery connector)
+- Airflow (orquestração da coleta e ingestão)
 
 **Arquivos:**
 - `postgresql/collector/collector.py` - Script coleta API
-- `airflow/dags/dag_weather_collection.py` - DAG de orquestração
-- `airbyte/README.md` - Configuração sync
+- `airflow/dags/dag_weather_collection.py` - DAG de coleta (4x/dia)
+- `airflow/dags/dag_weather_ingest.py` - DAG de ingestão PostgreSQL → BigQuery (incremental)
 
 **Testes:**
 - [x] Teste unitário: parsing resposta API
@@ -47,9 +46,9 @@ Coletar dados climáticos de múltiplas localidades brasileiras via API Open-Met
 - [x] Teste E2E: PostgreSQL → BigQuery sync
 
 ### 📊 Métricas
-- Localidades: 18
-- Frequência: Diária
-- Latência média: 45min
+- Localidades: 295 (todos os municípios de Santa Catarina)
+- Frequência: 4x/dia (coleta) + 4x/dia (ingestão)
+- Latência média: ~30min (coleta → BigQuery)
 - Taxa sucesso: 99.2%
 
 ---
