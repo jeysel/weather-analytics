@@ -2,11 +2,11 @@
 """
 collector.py
 ────────────
-App que roda no container PostgreSQL e coleta dados da API Open-Meteo,
-gravando diretamente nas tabelas raw.open_meteo_hourly e raw.open_meteo_daily.
+App que coleta dados da API Open-Meteo e grava nas tabelas
+raw.open_meteo_hourly e raw.open_meteo_daily no PostgreSQL.
 
-O Airbyte então lê dessas tabelas como Source (PostgreSQL CDC ou full refresh)
-e envia ao BigQuery como Destination — sem precisar de conector HTTP customizado.
+As localidades são carregadas do arquivo locations.csv (seed do dbt),
+garantindo consistência de location_id entre coleta e transformação.
 
 Modos de execução:
   python3 collector.py --mode once       # executa uma vez e sai
@@ -15,6 +15,7 @@ Modos de execução:
 """
 
 import os
+import csv
 import argparse
 import logging
 import time
@@ -49,35 +50,41 @@ DAILY_VARS = (
     "rain_sum,wind_speed_10m_max,sunrise,sunset,uv_index_max"
 )
 
-LOCATIONS = [
-    # ── Santa Catarina — Grande Florianópolis ─────────────────────────────────
-    {"id": "florianopolis",               "lat": -27.5954, "lon": -48.5480},
-    {"id": "palhoca",                     "lat": -27.6444, "lon": -48.6694},
-    {"id": "santo_amaro_da_imperatriz",   "lat": -27.6936, "lon": -48.7697},
-    {"id": "angelina",                    "lat": -27.5697, "lon": -48.9658},
+# ── Localidades carregadas do seed locations.csv ──────────────────────────────
 
-    # ── Santa Catarina — Litoral Sul ──────────────────────────────────────────
-    {"id": "garopaba",                    "lat": -28.0248, "lon": -48.6186},
-    {"id": "imbituba",                    "lat": -28.2400, "lon": -48.6639},
-    {"id": "laguna",                      "lat": -28.4844, "lon": -48.7812},
-    {"id": "tubarao",                     "lat": -28.4671, "lon": -49.0092},
-    {"id": "criciuma",                    "lat": -28.6773, "lon": -49.3700},
-    {"id": "ararangua",                   "lat": -28.9344, "lon": -49.4866},
+def load_locations() -> list:
+    """
+    Carrega localidades do locations.csv (seed do dbt).
+    Tenta o caminho do container Airflow primeiro, depois caminho relativo ao script.
+    """
+    candidates = [
+        "/opt/dbt/seeds/locations.csv",                                        # Airflow container
+        os.path.join(os.path.dirname(__file__), "../../dbt/seeds/locations.csv"),  # local dev
+    ]
+    csv_path = os.environ.get("LOCATIONS_CSV")
+    if csv_path:
+        candidates.insert(0, csv_path)
 
-    # ── Santa Catarina — Serra / Planalto ─────────────────────────────────────
-    {"id": "lages",                       "lat": -27.8153, "lon": -50.3261},
-    {"id": "campos_novos",                "lat": -27.4011, "lon": -51.2258},
-    {"id": "joaçaba",                     "lat": -27.1767, "lon": -51.5047},
+    for path in candidates:
+        path = os.path.normpath(path)
+        if os.path.exists(path):
+            locations = []
+            with open(path, newline="", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    locations.append({
+                        "id":  row["location_id"],
+                        "lat": float(row["latitude"]),
+                        "lon": float(row["longitude"]),
+                    })
+            log.info(f"Localidades carregadas: {len(locations)} municípios de {path}")
+            return locations
 
-    # ── Santa Catarina — Litoral Norte / Vale do Itajaí ──────────────────────
-    {"id": "balneario_camboriu",          "lat": -26.9906, "lon": -48.6342},
-    {"id": "itajai",                      "lat": -26.9069, "lon": -48.6606},
-    {"id": "joinville",                   "lat": -26.3045, "lon": -48.8487},
+    raise FileNotFoundError(
+        "locations.csv não encontrado. Defina LOCATIONS_CSV ou rode dentro do container Airflow."
+    )
 
-    # ── Santa Catarina — Oeste ────────────────────────────────────────────────
-    {"id": "chapeco",                     "lat": -27.1006, "lon": -52.6156},
-    {"id": "sao_miguel_do_oeste",         "lat": -26.7278, "lon": -53.5167},
-]
+
+LOCATIONS = load_locations()
 
 # ── Conexão PostgreSQL ────────────────────────────────────────────────────────
 
