@@ -4,11 +4,9 @@ Frequência: 4x por dia às 00:30, 06:30, 12:30 e 18:30 BRT
              (cron em UTC — BRT = UTC-3: 03:30, 09:30, 15:30, 21:30)
 
 Responsabilidade:
-  Coleta dados meteorológicos de 18 localidades de Santa Catarina via API
-  Open-Meteo e faz UPSERT no PostgreSQL (weather_staging.raw.*).
-  Substitui o container `collector` rodando em modo --mode scheduled.
-
-
+  Coleta dados meteorológicos de todos os 295 municípios de Santa Catarina
+  via API Open-Meteo e faz UPSERT no PostgreSQL (weather_staging.raw.*).
+  As localidades são carregadas do seed dbt/seeds/locations.csv (montado em /opt/dbt).
 """
 
 import os

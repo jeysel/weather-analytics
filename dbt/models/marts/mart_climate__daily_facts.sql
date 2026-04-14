@@ -19,6 +19,9 @@ with enriched as (
 
 final as (
     select
+        -- Chave única da linha
+        {{ dbt_utils.generate_surrogate_key(['location_id', 'date']) }} as surrogate_key,
+
         -- Dimensão tempo
         date,
         CAST(extract(year from date) AS {{ dbt.type_int() }})     as year,

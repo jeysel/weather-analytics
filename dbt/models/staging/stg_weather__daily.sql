@@ -15,6 +15,19 @@ with source as (
     select * from {{ source('open_meteo', 'daily') }}
 ),
 
+-- Deduplica por (location_id, date), mantendo a extração mais recente.
+-- Necessário porque o BigQuery acumula re-ingestões via WRITE_APPEND.
+deduped as (
+    select *,
+        row_number() over (
+            partition by location_id, date
+            order by _extracted_at desc
+        ) as _row_num
+    from source
+    where date is not null
+      and location_id is not null
+),
+
 renamed as (
     select
         CAST(location_id AS {{ dbt.type_string() }})        as location_id,
@@ -46,9 +59,8 @@ renamed as (
         CAST(_extracted_at AS {{ dbt.type_timestamp() }})       as _extracted_at,
         current_timestamp                                        as _loaded_at
 
-    from source
-    where date is not null
-      and location_id is not null
+    from deduped
+    where _row_num = 1
 )
 
 select * from renamed

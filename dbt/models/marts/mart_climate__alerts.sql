@@ -18,6 +18,7 @@ with facts as (
 
 alerts as (
     select
+        {{ dbt_utils.generate_surrogate_key(['location_id', 'date']) }} as surrogate_key,
         date,
         location_id,
         city_name,

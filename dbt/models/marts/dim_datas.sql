@@ -17,6 +17,14 @@ with base as (
     {{ dbt_date.get_date_dimension('2024-01-01', '2030-12-31') }}
 ),
 
+-- dbt_date retorna day_of_week com range 1-7 (1=Dom, 7=Sáb) em todos os adapters.
+-- Normalizamos para 0-6 (0=Dom, 6=Sáb) para consistência com as CASE abaixo.
+normalized as (
+    select *,
+        day_of_week - 1 as dow  -- 0=Domingo … 6=Sábado
+    from base
+),
+
 enriched as (
     select
         -- Chave natural (DATE é única por definição — sem necessidade de surrogate key)
@@ -29,7 +37,7 @@ enriched as (
         quarter_of_year                                                 as trimestre,
         week_of_year                                                    as semana_ano,
         iso_week_of_year                                                as semana_iso,
-        day_of_week                                                     as dia_semana_num,  -- 0=Dom, 6=Sáb
+        dow                                                             as dia_semana_num,  -- 0=Dom, 6=Sáb
         day_of_year                                                     as dia_do_ano,
 
         -- Nomes em português
@@ -49,14 +57,14 @@ enriched as (
             when 10 then 'Out'  when 11 then 'Nov'  when 12 then 'Dez'
         end                                                             as nm_mes_abrev,
 
-        case day_of_week
+        case dow
             when 0 then 'Domingo'       when 1 then 'Segunda-feira'
             when 2 then 'Terça-feira'   when 3 then 'Quarta-feira'
             when 4 then 'Quinta-feira'  when 5 then 'Sexta-feira'
             when 6 then 'Sábado'
         end                                                             as nm_dia_semana,
 
-        case day_of_week
+        case dow
             when 0 then 'Dom'  when 1 then 'Seg'  when 2 then 'Ter'
             when 3 then 'Qua'  when 4 then 'Qui'  when 5 then 'Sex'
             when 6 then 'Sáb'
@@ -87,7 +95,7 @@ enriched as (
         'Q' || CAST(quarter_of_year AS {{ dbt.type_string() }})        as sigla_trimestre,
 
         -- Flags
-        day_of_week in (0, 6)                                          as fl_fim_de_semana,
+        dow in (0, 6)                                                  as fl_fim_de_semana,
 
         -- Limites de período
         month_start_date                                                as primeiro_dia_mes,
@@ -102,7 +110,7 @@ enriched as (
         prior_date_day                                                  as dt_data_ontem,
         next_date_day                                                   as dt_data_amanha
 
-    from base
+    from normalized
 )
 
 select * from enriched
