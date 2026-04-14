@@ -2,6 +2,74 @@ version: 2
 
 models:
 
+  # ── mart_climate__hourly_facts ─────────────────────────────────────────────
+  - name: mart_climate__hourly_facts
+    description: >
+      Dados climáticos horários enriquecidos com metadados geográficos.
+      Permite análises de precipitação, temperatura e vento por hora do dia,
+      filtradas por município ou mesorregião de Santa Catarina.
+      Particionada por data e clusterizada por location_id e mesoregion.
+    tags: ["marts", "hourly", "facts"]
+    meta:
+      layer: marts
+      owner: analytics-engineering
+      upstream:
+        - stg_weather__hourly
+        - seeds.locations
+
+    columns:
+      - name: surrogate_key
+        description: "Chave única da linha — hash de (location_id, observed_at)."
+        tests:
+          - not_null
+          - unique
+
+      - name: observed_at
+        description: "Timestamp da observação."
+        tests: [not_null]
+
+      - name: date
+        description: "Data da observação (extraída do timestamp)."
+        tests: [not_null]
+
+      - name: hour
+        description: "Hora da observação (0–23)."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 23
+
+      - name: location_id
+        description: "Identificador único da localização."
+        tests: [not_null]
+
+      - name: city_name
+        description: "Nome da cidade."
+        tests: [not_null]
+
+      - name: mesoregion
+        description: "Mesorregião de Santa Catarina."
+
+      - name: temperature_c
+        description: "Temperatura a 2m em °C."
+
+      - name: relative_humidity_pct
+        description: "Umidade relativa em % (0–100)."
+
+      - name: precipitation_mm
+        description: "Precipitação acumulada na hora em mm."
+
+      - name: wind_speed_kmh
+        description: "Velocidade do vento em km/h."
+
+      - name: wmo_weather_label
+        description: "Descrição da condição climática (código WMO traduzido)."
+
+      - name: _dbt_updated_at
+        description: "Timestamp da última atualização pelo dbt."
+        tests: [not_null]
+
   # ── mart_climate__daily_facts ──────────────────────────────────────────────
   - name: mart_climate__daily_facts
     description: >
@@ -24,6 +92,12 @@ models:
         - seeds.locations
 
     columns:
+      - name: surrogate_key
+        description: "Chave única da linha — hash de (location_id, date)."
+        tests:
+          - not_null
+          - unique
+
       - name: date
         description: "Data de referência da observação."
         tests: [not_null]
@@ -149,6 +223,12 @@ models:
       owner: analytics-engineering
 
     columns:
+      - name: surrogate_key
+        description: "Chave única da linha — hash de (location_id, date)."
+        tests:
+          - not_null
+          - unique
+
       - name: date
         description: "Data do evento climático extremo."
         tests: [not_null]

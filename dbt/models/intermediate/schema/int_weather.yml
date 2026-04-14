@@ -2,7 +2,7 @@ version: 2
 
 models:
 
- 
+  # ── int_weather__daily_enriched ────────────────────────────────────────────
   - name: int_weather__daily_enriched
     description: >
       **Camada intermediate do pipeline climático.**

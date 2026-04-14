@@ -1,24 +1,23 @@
 version: 2
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Sources — tabelas raw populadas pelo Airbyte
+# Sources — tabelas raw populadas pelo dag_weather_ingest (PostgreSQL → BigQuery)
 # ─────────────────────────────────────────────────────────────────────────────
 
 sources:
   - name: open_meteo
     description: >
       Dados brutos coletados pelo collector.py da API Open-Meteo e gravados
-      no PostgreSQL (schema raw). O Airbyte sincroniza essas tabelas para o
-      BigQuery (dataset weather_raw).
+      no PostgreSQL (schema raw). O dag_weather_ingest replica essas tabelas
+      para o BigQuery (dataset weather_raw) de forma incremental.
       Dev (target dev): dbt le do PostgreSQL weather_staging.raw.
-      Prod (target prod): dbt le do BigQuery weather_raw populado pelo Airbyte.
+      Prod (target prod): dbt le do BigQuery weather_raw.
       Nao modifique estas tabelas manualmente.
     database: "{{ env_var('DBT_SOURCE_DATABASE', 'weather_staging') }}"
     schema: "{{ env_var('DBT_SOURCE_SCHEMA', 'raw') }}"
     tags: ["source", "open-meteo"]
 
     # ── Freshness ────────────────────────────────────────────────────────────
-    # Verifica com: docker compose run --rm dbt-run source freshness
     freshness:
       warn_after:  { count: 25, period: hour }
       error_after: { count: 49, period: hour }
@@ -30,40 +29,15 @@ sources:
       - name: hourly
         identifier: open_meteo_hourly
         description: >
-          Medições horárias de 9 variáveis climáticas para cada localização
-          monitorada. Populado pelo collector a cada 6 horas.
+          Medições horárias de 9 variáveis climáticas para os 295 municípios
+          de Santa Catarina. Populado pelo dag_weather_collection 4x ao dia.
         tags: ["hourly"]
 
         columns:
           - name: location_id
-            description: "Identificador da localização (ex: florianopolis)."
+            description: "Identificador da localização (slug ASCII do nome do município)."
             tests:
               - not_null
-              - accepted_values:
-                  values:
-                    # SC — Grande Florianópolis
-                    - florianopolis
-                    - palhoca
-                    - santo_amaro_da_imperatriz
-                    - angelina
-                    # SC — Litoral Sul
-                    - garopaba
-                    - imbituba
-                    - laguna
-                    - tubarao
-                    - criciuma
-                    - ararangua
-                    # SC — Serra / Planalto
-                    - lages
-                    - campos_novos
-                    - joaçaba
-                    # SC — Litoral Norte / Vale do Itajaí
-                    - balneario_camboriu
-                    - itajai
-                    - joinville
-                    # SC — Oeste
-                    - chapeco
-                    - sao_miguel_do_oeste
 
           - name: timestamp
             description: "Data e hora da medição (America/Sao_Paulo)."
@@ -100,7 +74,7 @@ sources:
                   max_value: 300
 
           - name: _extracted_at
-            description: "Timestamp de extração pelo Airbyte."
+            description: "Timestamp de extração pelo collector."
             tests:
               - not_null
 
@@ -109,7 +83,7 @@ sources:
         identifier: open_meteo_daily
         description: >
           Resumo diário com máximas, mínimas, precipitação total, UV e
-          horários de nascer/pôr do sol. Populado pelo Airbyte diariamente.
+          horários de nascer/pôr do sol para os 295 municípios de SC.
         tags: ["daily"]
 
         columns:
@@ -152,6 +126,6 @@ sources:
                   max_value: 20
 
           - name: _extracted_at
-            description: "Timestamp de extração pelo Airbyte."
+            description: "Timestamp de extração pelo collector."
             tests:
               - not_null

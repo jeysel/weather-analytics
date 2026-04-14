@@ -1,0 +1,91 @@
+version: 2
+
+seeds:
+
+  # ── locations ──────────────────────────────────────────────────────────────
+  - name: locations
+    description: >
+      Cadastro de todos os 295 municípios de Santa Catarina monitorados.
+      Fonte: IBGE (lista de municípios) + Nominatim/OpenStreetMap (coordenadas).
+      Carregado via `dbt seed` na camada seeds do BigQuery.
+    tags: ["seed", "geography"]
+    meta:
+      owner: analytics-engineering
+      update_frequency: manual
+
+    columns:
+      - name: location_id
+        description: "Identificador único do município — slug ASCII lowercase (ex: florianopolis)."
+        tests:
+          - not_null
+          - unique
+
+      - name: city_name
+        description: "Nome oficial do município."
+        tests: [not_null]
+
+      - name: state_name
+        description: "Nome do estado."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Santa Catarina]
+
+      - name: state_code
+        description: "Sigla do estado (UF)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [SC]
+
+      - name: country
+        description: "País."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Brasil]
+
+      - name: region
+        description: "Região geográfica do Brasil."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Sul]
+
+      - name: mesoregion
+        description: "Mesorregião de Santa Catarina (IBGE)."
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Grande Florianópolis
+                - Norte Catarinense
+                - Vale do Itajaí
+                - Serrana
+                - Oeste Catarinense
+                - Sul Catarinense
+
+      - name: latitude
+        description: "Latitude em graus decimais (negativo = Sul)."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -30
+              max_value: -26
+
+      - name: longitude
+        description: "Longitude em graus decimais (negativo = Oeste)."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -54
+              max_value: -48
+
+      - name: altitude_m
+        description: "Altitude em metros acima do nível do mar."
+
+      - name: population_class
+        description: "Classificação por porte populacional."
+        tests:
+          - accepted_values:
+              values: [small, medium, large, metropolitan]
