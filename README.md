@@ -170,11 +170,116 @@ dag_weather_transform (07:30 BRT)
   └── dbt_test    BashOperator → dbt test  --target prod
 ```
 
-### Backfill de dados históricos - Buscar dados antigos
+### Backfill de dados históricos
+
+A DAG `dag_weather_backfill` popula o BigQuery com dados históricos da API Open-Meteo Archive
+diretamente, sem passar pelo PostgreSQL. Indicada para quem quer iniciar o projeto com volume
+suficiente para dashboards com storytelling (5 anos de dados diários + 2 anos de horários).
+
+**Estimativa:** ~40 min | **Storage BigQuery:** ~2 GB | Dentro do free tier (10 GB/mês)
+
+Os períodos estão configurados diretamente no arquivo
+`airflow/dags/dag_weather_backfill.py` nas constantes:
+
+```python
+DAILY_START  = "2021-01-01"   # 5 anos de dados diários
+DAILY_END    = _YESTERDAY     # até ontem (calculado automaticamente)
+HOURLY_START = "2024-01-01"   # 2 anos de dados horários
+HOURLY_END   = _YESTERDAY
+```
+
+Ajuste antes de disparar, se necessário.
+
+#### Passo 1 — Limpar dados existentes
 
 ```bash
-docker exec weather_postgres \
-  python3 /opt/collector/collector.py --mode backfill --start 2024-01-01 --end 2024-12-31
+# PostgreSQL (requer superusuário)
+docker exec -it weather_postgres psql -U postgres -d weather_staging -c "TRUNCATE raw.open_meteo_daily CASCADE;"
+docker exec -it weather_postgres psql -U postgres -d weather_staging -c "TRUNCATE raw.open_meteo_hourly CASCADE;"
+```
+
+No **BigQuery Console → Query editor**:
+
+```sql
+TRUNCATE TABLE `seu-projeto.weather_raw.open_meteo_daily`;
+TRUNCATE TABLE `seu-projeto.weather_raw.open_meteo_hourly`;
+```
+
+> Substitua `seu-projeto` pelo seu `GCP_PROJECT_ID`.
+
+#### Passo 2 — Despauar a DAG
+
+```bash
+docker exec -it airflow_scheduler airflow dags unpause dag_weather_backfill
+```
+
+Se o comando não persistir, acesse a Airflow UI em [http://localhost:8081](http://localhost:8081),
+encontre a DAG `dag_weather_backfill` na lista e ative o toggle ao lado do nome.
+
+#### Passo 3 — Disparar o backfill
+
+```bash
+docker exec -it airflow_scheduler airflow dags trigger dag_weather_backfill
+```
+
+#### Sequência de execução
+
+```
+prepare_bigquery  (~5s)    → cria tabelas e trunca weather_raw no BigQuery
+backfill_daily    (~15min) → 295 cidades × 5 anos ≈ 540k linhas
+backfill_hourly   (~20min) → 295 cidades × 2 anos ≈ 12,9M linhas
+trigger_transform (~5min)  → dbt seed → run → test (reconstrói todos os marts)
+```
+
+> **Nota:** a DAG faz 1,5 requisições por segundo à API Open-Meteo com retry automático
+> e backoff exponencial em caso de rate limit (HTTP 429). Não interrompa a execução durante o backfill.
+
+#### Verificar dados inseridos no BigQuery
+
+Após a execução, confirme no **BigQuery Console → Query editor** (substitua `seu-projeto` pelo `GCP_PROJECT_ID`):
+
+```sql
+-- Total de linhas inseridas
+SELECT COUNT(*) FROM `seu-projeto.weather_raw.open_meteo_daily`;
+SELECT COUNT(*) FROM `seu-projeto.weather_raw.open_meteo_hourly`;
+
+-- Municípios distintos coletados (esperado: 295)
+SELECT COUNT(DISTINCT location_id) AS municipios_coletados
+FROM `seu-projeto.weather_raw.open_meteo_daily`;
+
+-- Linhas por município (útil para identificar quem falhou)
+SELECT location_id, COUNT(*) AS total
+FROM `seu-projeto.weather_raw.open_meteo_daily`
+GROUP BY location_id
+ORDER BY location_id;
+```
+
+#### Passo 4 (opcional) — Re-executar para municípios que falharam
+
+Se a execução terminar com erros em alguns municípios (visível no log da task como `✗ nome_cidade`),
+edite as constantes no arquivo `airflow/dags/dag_weather_backfill.py` antes de disparar novamente:
+
+```python
+# Re-execução após falhas — coleta apenas municípios que falharam
+TRUNCATE_EXISTING = False   # mantém dados já coletados
+SKIP_EXISTING     = True    # pula quem já tem dados no BigQuery
+```
+
+> **Atenção:** a configuração padrão no arquivo é `TRUNCATE_EXISTING = True` / `SKIP_EXISTING = False`
+> (primeira execução). Altere antes de disparar a re-execução.
+
+Depois dispare normalmente:
+
+```bash
+docker exec -it airflow_scheduler airflow dags trigger dag_weather_backfill
+```
+
+A DAG vai consultar o BigQuery, identificar quais municípios já têm dados e pular esses automaticamente,
+coletando apenas os que estão faltando. Ao final, restaure os valores originais para a próxima vez:
+
+```python
+TRUNCATE_EXISTING = True
+SKIP_EXISTING     = False
 ```
 
 ---
