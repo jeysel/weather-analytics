@@ -174,9 +174,9 @@ dag_weather_transform (07:30 BRT)
 
 A DAG `dag_weather_backfill` popula o BigQuery com dados históricos da API Open-Meteo Archive
 diretamente, sem passar pelo PostgreSQL. Indicada para quem quer iniciar o projeto com volume
-suficiente para dashboards com storytelling (5 anos de dados diários + 2 anos de horários).
+suficiente para dashboards com storytelling (5 anos de dados diários + 2 anos de dados horários).
 
-**Estimativa:** ~40 min | **Storage BigQuery:** ~2 GB | Dentro do free tier (10 GB/mês)
+**Estimativa:** ~90 min | **Storage BigQuery:** ~2 GB | Dentro do free tier (10 GB/mês)
 
 Os períodos estão configurados diretamente no arquivo
 `airflow/dags/dag_weather_backfill.py` nas constantes:
