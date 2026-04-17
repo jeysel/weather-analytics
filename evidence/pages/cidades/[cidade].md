@@ -35,12 +35,19 @@ order by year_month desc
 limit 60
 ```
 
+```sql mes_mais_recente
+select max(year_month) as value
+from weather_dw.mart_climate__daily_facts
+where location_id = '${params.cidade}'
+```
+
 <Dropdown
   name="ano_mes"
   data={meses_disponiveis}
   value="value"
   label="label"
   title="Mês/Ano"
+  defaultValue={mes_mais_recente[0]?.value}
 />
 
 ```sql info_cidade
@@ -76,7 +83,7 @@ select
   is_weekend
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and year_month = '${inputs.ano_mes.value}'
+  and (year_month = '${inputs.ano_mes.value}' or '${inputs.ano_mes.value}' in ('undefined', ''))
 order by date
 ```
 
@@ -93,7 +100,7 @@ select
   round(avg(temp_anomaly_c), 2)     as anomalia_media_c
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and year_month = '${inputs.ano_mes.value}'
+  and (year_month = '${inputs.ano_mes.value}' or '${inputs.ano_mes.value}' in ('undefined', ''))
 ```
 
 ```sql alertas_cidade
@@ -109,7 +116,7 @@ select
   uv_index_max
 from weather_dw.mart_climate__alerts
 where location_id = '${params.cidade}'
-  and strftime(date, '%Y-%m') = '${inputs.ano_mes.value}'
+  and (year_month = '${inputs.ano_mes.value}' or '${inputs.ano_mes.value}' in ('undefined', ''))
   and alert_type != '__no_alerts__'
 order by date desc
 ```
@@ -121,7 +128,7 @@ select
   round(avg(uv_index_max), 1)         as uv_medio
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and year_month = '${inputs.ano_mes.value}'
+  and (year_month = '${inputs.ano_mes.value}' or '${inputs.ano_mes.value}' in ('undefined', ''))
 group by uv_risk_level
 order by
   case uv_risk_level
@@ -243,7 +250,7 @@ order by region, city_name
 ## Outras Cidades
 
 <DataTable data={lista_todas_cidades} rows=10 search=true>
-  <Column id="city_name" title="Cidade" link="/cidades/{cidade}" />
+  <Column id="city_name" title="Cidade" />
   <Column id="state_name" title="UF" />
   <Column id="region" title="Região" />
 </DataTable>
