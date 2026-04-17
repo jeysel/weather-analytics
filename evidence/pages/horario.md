@@ -2,23 +2,12 @@
 title: Análise Horária
 ---
 
-```sql regioes
-select value, label from (
-  select 'Todas' as value, 'Todas as Regiões' as label, 0 as ord
-  union all
-  select distinct region as value, region as label, 1 as ord
-  from weather_dw.mart_climate__hourly_facts
-)
-order by ord, label
-```
-
 ```sql mesorregioes
 select value, label from (
   select 'Todas' as value, 'Todas as Mesorregiões' as label, 0 as ord
   union all
   select distinct mesoregion as value, mesoregion as label, 1 as ord
   from weather_dw.mart_climate__hourly_facts
-  where ('${inputs.regiao.value}' = 'Todas' or region = '${inputs.regiao.value}')
 )
 order by ord, label
 ```
@@ -28,8 +17,7 @@ select distinct
   location_id as value,
   city_name   as label
 from weather_dw.mart_climate__hourly_facts
-where ('${inputs.regiao.value}'    = 'Todas' or region      = '${inputs.regiao.value}')
-  and ('${inputs.mesoregiao.value}' = 'Todas' or mesoregion = '${inputs.mesoregiao.value}')
+where ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
 order by city_name
 ```
 
@@ -42,14 +30,10 @@ order by value desc
 limit 30
 ```
 
-<Dropdown
-  name="regiao"
-  data={regioes}
-  value="value"
-  label="label"
-  title="Região"
-  defaultValue="Todas"
-/>
+```sql data_mais_recente
+select max(strftime(date, '%Y-%m-%d')) as value
+from weather_dw.mart_climate__hourly_facts
+```
 
 <Dropdown
   name="mesoregiao"
@@ -75,7 +59,7 @@ limit 30
   value="value"
   label="label"
   title="Dia de referência"
-  defaultValue={datas_disponiveis[0].value}
+  defaultValue={data_mais_recente[0]?.value}
 />
 
 ```sql perfil_hora_regiao
@@ -86,8 +70,7 @@ select
   round(max(temperature_c), 1)          as temp_max,
   round(avg(relative_humidity_pct), 1)  as umidade_media
 from weather_dw.mart_climate__hourly_facts
-where ('${inputs.regiao.value}'    = 'Todas' or region     = '${inputs.regiao.value}')
-  and ('${inputs.mesoregiao.value}' = 'Todas' or mesoregion = '${inputs.mesoregiao.value}')
+where ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
 group by hour
 order by hour
 ```
@@ -101,8 +84,8 @@ select
   round(avg(wind_speed_kmh), 1)         as vento_kmh,
   round(avg(cloud_cover_pct), 1)        as nebulosidade_pct
 from weather_dw.mart_climate__hourly_facts
-where location_id = '${inputs.cidade.value}'
-  and strftime(date, '%Y-%m-%d') = '${inputs.data_ref.value}'
+where ('${inputs.cidade.value}' in ('undefined', '') or location_id = '${inputs.cidade.value}')
+  and (strftime(date, '%Y-%m-%d') = '${inputs.data_ref.value}' or '${inputs.data_ref.value}' in ('undefined', ''))
 group by hour
 order by hour
 ```
@@ -114,7 +97,7 @@ select
     then h.temperature_c end), 1)                                           as temp_dia_ref,
   round(avg(h.temperature_c), 1)                                            as temp_media_30d
 from weather_dw.mart_climate__hourly_facts h
-where h.location_id = '${inputs.cidade.value}'
+where ('${inputs.cidade.value}' in ('undefined', '') or h.location_id = '${inputs.cidade.value}')
 group by h.hour
 order by h.hour
 ```
@@ -126,7 +109,7 @@ select
   round(avg(temperature_c), 1)          as temp_media,
   round(avg(relative_humidity_pct), 1)  as umidade_media
 from weather_dw.mart_climate__hourly_facts
-where location_id = '${inputs.cidade.value}'
+where ('${inputs.cidade.value}' in ('undefined', '') or location_id = '${inputs.cidade.value}')
 group by wmo_weather_label
 order by ocorrencias desc
 limit 10
@@ -135,16 +118,15 @@ limit 10
 ```sql mapa_temperatura_atual
 select
   city_name,
-  region,
+  mesoregion,
   round(avg(latitude), 4)         as latitude,
   round(avg(longitude), 4)        as longitude,
   round(avg(temperature_c), 1)    as temp_media,
   round(avg(wind_speed_kmh), 1)   as vento_medio
 from weather_dw.mart_climate__hourly_facts
-where strftime(date, '%Y-%m-%d') = '${inputs.data_ref.value}'
-  and ('${inputs.regiao.value}'    = 'Todas' or region     = '${inputs.regiao.value}')
-  and ('${inputs.mesoregiao.value}' = 'Todas' or mesoregion = '${inputs.mesoregiao.value}')
-group by city_name, region
+where (strftime(date, '%Y-%m-%d') = '${inputs.data_ref.value}' or '${inputs.data_ref.value}' in ('undefined', ''))
+  and ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+group by city_name, mesoregion
 ```
 
 # Análise Horária — Santa Catarina
@@ -155,7 +137,7 @@ Os dados diários mostram o que aconteceu num dia. Os dados horários mostram **
 
 ## Perfil de Temperatura por Hora do Dia
 
-Como a temperatura varia ao longo das 24 horas na região selecionada, considerando os últimos 30 dias. A banda entre mínima e máxima revela a amplitude típica de cada hora — horas da madrugada tendem a ter banda estreita; o início da tarde, a mais larga.
+Como a temperatura varia ao longo das 24 horas na mesorregião selecionada, considerando os últimos 30 dias. A banda entre mínima e máxima revela a amplitude típica de cada hora — horas da madrugada tendem a ter banda estreita; o início da tarde, a mais larga.
 
 <LineChart
   data={perfil_hora_regiao}
