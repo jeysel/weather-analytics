@@ -20,10 +20,12 @@ alerts as (
     select
         {{ dbt_utils.generate_surrogate_key(['location_id', 'date']) }} as surrogate_key,
         date,
+        year_month,
         location_id,
         city_name,
         state_name,
         region,
+        mesoregion,
 
         -- Tipo de alerta
         case

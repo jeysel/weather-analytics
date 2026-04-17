@@ -5,11 +5,14 @@
 select * from marts.mart_climate__alerts
 union all
 select
+  '__no_alerts__'          as surrogate_key,
   date '1900-01-01'        as date,
+  cast(null as string)     as year_month,
   cast(null as string)     as location_id,
   cast(null as string)     as city_name,
   cast(null as string)     as state_name,
   cast(null as string)     as region,
+  cast(null as string)     as mesoregion,
   '__no_alerts__'          as alert_type,
   'low'                    as severity,
   cast(0.0 as float64)     as temp_max_c,

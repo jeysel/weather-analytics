@@ -45,6 +45,7 @@ final as (
         state_name,
         country,
         region,
+        mesoregion,
         latitude,
         longitude,
         altitude_m,

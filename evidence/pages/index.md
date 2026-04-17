@@ -2,160 +2,178 @@
 title: Weather Analytics — Visão Geral
 ---
 
-```sql totais
-select
-  count(distinct location_id)                          as total_locais,
-  count(distinct date)                                 as total_dias,
-  min(date)                                            as data_inicial,
-  max(date)                                            as data_final,
-  round(avg(temp_avg_c), 1)                            as temp_media_geral_c,
-  round(avg(precipitation_mm), 1)                      as precip_media_diaria_mm
+```sql mesorregioes
+select value, label from (
+  select 'Todas' as value, 'Todas as Mesorregiões' as label, 0 as ord
+  union all
+  select distinct mesoregion as value, mesoregion as label, 1 as ord
+  from weather_dw.mart_climate__daily_facts
+)
+order by ord, label
+```
+
+```sql cidades_disponiveis
+select value, label from (
+  select 'Todas' as value, 'Todos os Municípios' as label, 0 as ord
+  union all
+  select distinct location_id as value, city_name as label, 1 as ord
+  from weather_dw.mart_climate__daily_facts
+  where ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+)
+order by ord, label
+```
+
+```sql meses_disponiveis
+select distinct
+  year_month as value,
+  year_month as label
+from weather_dw.mart_climate__daily_facts
+order by year_month desc
+limit 24
+```
+
+```sql mes_mais_recente
+select max(year_month) as value
 from weather_dw.mart_climate__daily_facts
 ```
 
-```sql alertas_ativos
-select count(*) as total_alertas
-from weather_dw.mart_climate__alerts
-where date >= current_date - interval '7 days'
-  and alert_type != '__no_alerts__'
+<Dropdown
+  name="mesoregiao"
+  data={mesorregioes}
+  value="value"
+  label="label"
+  title="Mesorregião"
+  defaultValue="Todas"
+/>
+
+<Dropdown
+  name="cidade"
+  data={cidades_disponiveis}
+  value="value"
+  label="label"
+  title="Município"
+  defaultValue="Todas"
+/>
+
+<Dropdown
+  name="ano_mes"
+  data={meses_disponiveis}
+  value="value"
+  label="label"
+  title="Mês/Ano"
+  defaultValue={mes_mais_recente[0]?.value}
+/>
+
+```sql scorecards
+select
+  round(max(temp_max_c), 1)        as temp_maxima,
+  round(min(temp_min_c), 1)        as temp_minima,
+  round(avg(temp_avg_c), 1)        as temp_media,
+  round(sum(precipitation_mm), 1)  as precip_acumulada_mm,
+  round(avg(temp_anomaly_c), 2)    as anomalia_media
+from weather_dw.mart_climate__daily_facts
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'  in ('Todas', 'undefined', '') or location_id = '${inputs.cidade.value}')
 ```
 
-```sql temperatura_nacional_30d
+```sql serie_diaria
 select
   date,
-  round(avg(temp_max_c), 1)   as temp_max,
-  round(avg(temp_avg_c), 1)   as temp_media,
-  round(avg(temp_min_c), 1)   as temp_min
+  round(avg(temp_avg_c), 1)     as temp_media_c,
+  round(avg(temp_anomaly_c), 2) as anomalia_c
 from weather_dw.mart_climate__daily_facts
-where date >= current_date - interval '30 days'
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'  in ('Todas', 'undefined', '') or location_id = '${inputs.cidade.value}')
 group by date
 order by date
 ```
 
-```sql alertas_por_tipo_30d
+```sql mapa_municipios
 select
-  alert_type                    as tipo,
-  count(*)                      as ocorrencias,
-  count(*) filter (where severity = 'critical') as criticos,
-  count(*) filter (where severity = 'high')    as altos
-from weather_dw.mart_climate__alerts
-where date >= current_date - interval '30 days'
-  and alert_type != '__no_alerts__'
-group by alert_type
-order by ocorrencias desc
-```
-
-```sql resumo_por_regiao
-select
-  region                                              as regiao,
-  count(distinct location_id)                         as cidades,
-  round(avg(temp_avg_c), 1)                           as temp_media_c,
-  round(avg(precipitation_mm), 1)                     as precip_media_mm,
-  round(avg(temp_anomaly_c), 2)                       as anomalia_media_c
+  city_name,
+  mesoregion,
+  round(avg(latitude), 4)          as latitude,
+  round(avg(longitude), 4)         as longitude,
+  round(avg(temp_avg_c), 1)        as temp_media_c,
+  round(avg(temp_amplitude_c), 1)  as amplitude_media_c
 from weather_dw.mart_climate__daily_facts
-where date >= current_date - interval '30 days'
-group by region
-order by temp_media_c desc
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+group by city_name, mesoregion
 ```
 
-```sql ultimas_atualizacoes
-select
-  city_name                                           as cidade,
-  state_name,
-  max(date)                                           as ultimo_dado,
-  max(_extracted_at)                                  as ultima_coleta
-from weather_dw.mart_climate__daily_facts
-group by city_name, state_name
-order by ultima_coleta desc
-limit 10
-```
+# Visão Geral Climática — Santa Catarina
 
-# Weather Analytics Pipeline
+Santa Catarina concentra ao mesmo tempo alguns dos municípios mais frios do Brasil e regiões de calor intenso no Oeste e no Vale do Itajaí. Esta página responde uma pergunta simples: **como está o clima no mês selecionado, comparado ao que é esperado para esta época?**
 
-Pipeline de dados climáticos cobrindo **{totais[0].total_locais} localidades** brasileiras,
-com dados históricos de **{new Date(totais[0].data_inicial).toLocaleDateString('pt-BR')}** a **{new Date(totais[0].data_final).toLocaleDateString('pt-BR')}**
-({totais[0].total_dias} dias de série temporal).
+---
 
 <BigValue
-  data={totais}
-  value="total_locais"
-  title="Localidades Monitoradas"
+  data={scorecards}
+  value="temp_maxima"
+  title="Temperatura Máxima"
+  fmt="0.0°C"
 />
 <BigValue
-  data={totais}
-  value="total_dias"
-  title="Dias de Histórico"
+  data={scorecards}
+  value="temp_minima"
+  title="Temperatura Mínima"
+  fmt="0.0°C"
 />
 <BigValue
-  data={totais}
-  value="temp_media_geral_c"
-  title="Temp. Média Geral"
-  fmt="0.0"
+  data={scorecards}
+  value="temp_media"
+  title="Temperatura Média"
+  fmt="0.0°C"
 />
 <BigValue
-  data={alertas_ativos}
-  value="total_alertas"
-  title="Alertas (últimos 7 dias)"
+  data={scorecards}
+  value="precip_acumulada_mm"
+  title="Precipitação Acumulada"
+  fmt="0.0mm"
+/>
+<BigValue
+  data={scorecards}
+  value="anomalia_media"
+  title="Anomalia Média"
+  fmt="+0.00;-0.00°C"
 />
 
 ---
 
-## Temperatura Nacional — Últimos 30 dias
+## Temperatura Média Diária e Desvio Histórico
+
+A linha azul mostra a temperatura média diária no período. A linha laranja indica o desvio em relação à média dos últimos 30 dias — valores positivos significam dias mais quentes que o normal histórico recente; negativos, mais frios.
 
 <LineChart
-  data={temperatura_nacional_30d}
+  data={serie_diaria}
   x="date"
-  y={["temp_max", "temp_media", "temp_min"]}
+  y={["temp_media_c", "anomalia_c"]}
   yAxisTitle="Temperatura (°C)"
-  title="Máxima / Média / Mínima diária (média entre todas as localidades)"
   xFmt="dd/MM/yyyy"
   labels
+  colorPalette={["#4A90D9", "#FF6B35"]}
 />
 
 ---
 
-## Alertas por Tipo — Últimos 30 dias
+## Temperatura Média por Município
 
-{#if alertas_por_tipo_30d.length > 0}
+O mapa mostra onde está mais quente ou mais frio no estado. O tamanho de cada bolha representa a amplitude térmica do município — quão diferente foi a temperatura entre máxima e mínima no período. A Serra Catarinense e o Oeste costumam apresentar os maiores contrastes.
 
-<BarChart
-  data={alertas_por_tipo_30d}
-  x="tipo"
-  y="ocorrencias"
-  yAxisTitle="Ocorrências"
-  title="Eventos climáticos extremos detectados"
-  colorPalette={["#e74c3c", "#e67e22"]}
+<BubbleMap
+  data={mapa_municipios}
+  lat="latitude"
+  long="longitude"
+  size="amplitude_media_c"
+  value="temp_media_c"
+  pointName="city_name"
+  valueFmt="0.0°C"
+  title="Temperatura média por município (tamanho = amplitude térmica)"
 />
 
-{:else}
-
-> Não há alertas climáticos nos últimos 30 dias.
-
-{/if}
-
 ---
 
-## Resumo por Região
-
-<DataTable data={resumo_por_regiao}>
-  <Column id="regiao" title="Região" />
-  <Column id="cidades" title="Cidades" />
-  <Column id="temp_media_c" title="Temp. Média (°C)" fmt="0.0" />
-  <Column id="precip_media_mm" title="Precip. Média (mm)" fmt="0.0" />
-  <Column id="anomalia_media_c" title="Anomalia Temp. (°C)" fmt="+0.00;-0.00" contentType="colorscale" />
-</DataTable>
-
----
-
-## Frescos de Pipeline
-
-<DataTable data={ultimas_atualizacoes} title="Últimas coletas por cidade">
-  <Column id="cidade" title="Cidade" />
-  <Column id="state_name" title="Estado" />
-  <Column id="ultimo_dado" title="Último Dado" fmt="dd/MM/yyyy" />
-  <Column id="ultima_coleta" title="Última Coleta" fmt="dd/MM/yyyy" />
-</DataTable>
-
----
-
-**Navegação:** [Temperatura](/temperatura) · [Precipitação](/precipitacao) · [Alertas](/alertas)
+**Navegação:** [Temperatura](/temperatura) · [Precipitação](/precipitacao) · [Alertas](/alertas) · [Horário](/horario)

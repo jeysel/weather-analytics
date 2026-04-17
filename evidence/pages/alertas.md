@@ -2,12 +2,173 @@
 title: Alertas Climáticos
 ---
 
-```sql alertas_recentes
+```sql periodos_disponiveis
+select distinct
+  year_month as value,
+  year_month as label
+from weather_dw.mart_climate__alerts
+where alert_type != '__no_alerts__'
+order by value desc
+limit 24
+```
+
+```sql periodo_mais_recente
+select max(year_month) as value
+from weather_dw.mart_climate__alerts
+where alert_type != '__no_alerts__'
+```
+
+```sql mesorregioes
+select value, label from (
+  select 'Todas' as value, 'Todas as Mesorregiões' as label, 0 as ord
+  union all
+  select distinct mesoregion as value, mesoregion as label, 1 as ord
+  from weather_dw.mart_climate__alerts
+  where alert_type != '__no_alerts__'
+)
+order by ord, label
+```
+
+```sql cidades_disponiveis
+select value, label from (
+  select 'Todas' as value, 'Todos os Municípios' as label, 0 as ord
+  union all
+  select distinct city_name as value, city_name as label, 1 as ord
+  from weather_dw.mart_climate__alerts
+  where alert_type != '__no_alerts__'
+    and ('${inputs.mesoregiao.value}' in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+)
+order by ord, label
+```
+
+```sql tipos_alerta
+select value, label from (
+  select 'Todos' as value, 'Todos os Tipos' as label, 0 as ord
+  union all
+  select distinct alert_type as value, alert_type as label, 1 as ord
+  from weather_dw.mart_climate__alerts
+  where alert_type != '__no_alerts__'
+)
+order by ord, label
+```
+
+```sql severidades
+select value, label from (
+  select 'Todas'    as value, 'Todas as Severidades' as label, 0 as ord
+  union all
+  select 'critical' as value, 'Crítico'              as label, 1 as ord
+  union all
+  select 'high'     as value, 'Alto'                 as label, 2 as ord
+  union all
+  select 'medium'   as value, 'Médio'                as label, 3 as ord
+  union all
+  select 'low'      as value, 'Baixo'                as label, 4 as ord
+)
+order by ord
+```
+
+<Dropdown
+  name="ano_mes"
+  data={periodos_disponiveis}
+  value="value"
+  label="label"
+  title="Mês/Ano"
+  defaultValue={periodo_mais_recente[0]?.value}
+/>
+
+<Dropdown
+  name="mesoregiao"
+  data={mesorregioes}
+  value="value"
+  label="label"
+  title="Mesorregião"
+  defaultValue="Todas"
+/>
+
+<Dropdown
+  name="cidade"
+  data={cidades_disponiveis}
+  value="value"
+  label="label"
+  title="Município"
+  defaultValue="Todas"
+/>
+
+<Dropdown
+  name="tipo_alerta"
+  data={tipos_alerta}
+  value="value"
+  label="label"
+  title="Tipo de Alerta"
+  defaultValue="Todos"
+/>
+
+<ButtonGroup name="severidade" title="Severidade">
+    <ButtonGroupItem valueLabel="Todas" value="Todas" default />
+    <ButtonGroupItem valueLabel="Crítico" value="critical" />
+    <ButtonGroupItem valueLabel="Alto" value="high" />
+    <ButtonGroupItem valueLabel="Médio" value="medium" />
+    <ButtonGroupItem valueLabel="Baixo" value="low" />
+</ButtonGroup>
+
+```sql scorecards
+select
+  count(*)                                               as total_alertas,
+  count(*) filter (where severity = 'critical')          as criticos,
+  count(*) filter (where severity = 'high')              as altos,
+  count(distinct city_name)                              as municipios_afetados
+from weather_dw.mart_climate__alerts
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and alert_type != '__no_alerts__'
+  and ('${inputs.mesoregiao.value}'  in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'      in ('Todas', 'undefined', '') or city_name  = '${inputs.cidade.value}')
+  and ('${inputs.tipo_alerta.value}' in ('Todos', 'undefined', '') or alert_type = '${inputs.tipo_alerta.value}')
+  and ('${inputs.severidade.value}'  in ('Todas', 'undefined', '') or severity   = '${inputs.severidade.value}')
+```
+
+```sql frequencia_por_tipo
+select
+  alert_type                                             as tipo,
+  count(*) filter (where severity = 'critical')          as critico,
+  count(*) filter (where severity = 'high')              as alto,
+  count(*) filter (where severity = 'medium')            as medio,
+  count(*) filter (where severity = 'low')               as baixo,
+  count(*)                                               as total
+from weather_dw.mart_climate__alerts
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and alert_type != '__no_alerts__'
+  and ('${inputs.mesoregiao.value}'  in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'      in ('Todas', 'undefined', '') or city_name  = '${inputs.cidade.value}')
+  and ('${inputs.tipo_alerta.value}' in ('Todos', 'undefined', '') or alert_type = '${inputs.tipo_alerta.value}')
+  and ('${inputs.severidade.value}'  in ('Todas', 'undefined', '') or severity   = '${inputs.severidade.value}')
+group by alert_type
+order by total desc
+```
+
+```sql alertas_por_regiao
+select
+  mesoregion                                             as regiao,
+  count(*) filter (where severity = 'critical')          as critico,
+  count(*) filter (where severity = 'high')              as alto,
+  count(*) filter (where severity = 'medium')            as medio,
+  count(*) filter (where severity = 'low')               as baixo,
+  count(*)                                               as total
+from weather_dw.mart_climate__alerts
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and alert_type != '__no_alerts__'
+  and ('${inputs.mesoregiao.value}'  in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'      in ('Todas', 'undefined', '') or city_name  = '${inputs.cidade.value}')
+  and ('${inputs.tipo_alerta.value}' in ('Todos', 'undefined', '') or alert_type = '${inputs.tipo_alerta.value}')
+  and ('${inputs.severidade.value}'  in ('Todas', 'undefined', '') or severity   = '${inputs.severidade.value}')
+group by mesoregion
+order by total desc
+```
+
+```sql tabela_eventos
 select
   date,
   city_name,
-  state_name,
-  region,
+  mesoregion,
   alert_type,
   severity,
   temp_max_c,
@@ -17,219 +178,96 @@ select
   wind_speed_max_kmh,
   uv_index_max
 from weather_dw.mart_climate__alerts
-where date >= current_date - interval '30 days'
-order by date desc, severity desc
+where (year_month = '${inputs.ano_mes.value}' or length('${inputs.ano_mes.value}') != 7)
+  and alert_type != '__no_alerts__'
+  and ('${inputs.mesoregiao.value}'  in ('Todas', 'undefined', '') or mesoregion = '${inputs.mesoregiao.value}')
+  and ('${inputs.cidade.value}'      in ('Todas', 'undefined', '') or city_name  = '${inputs.cidade.value}')
+  and ('${inputs.tipo_alerta.value}' in ('Todos', 'undefined', '') or alert_type = '${inputs.tipo_alerta.value}')
+  and ('${inputs.severidade.value}'  in ('Todas', 'undefined', '') or severity   = '${inputs.severidade.value}')
+order by date desc, severity
 ```
 
-```sql contagem_por_tipo
-select
-  alert_type                                        as tipo_alerta,
-  count(*)                                          as total,
-  count(*) filter (where severity = 'critical')                    as criticos,
-  count(*) filter (where severity = 'high')                        as altos,
-  count(*) filter (where severity = 'medium')                      as medios,
-  count(*) filter (where severity = 'low')                         as baixos
-from weather_dw.mart_climate__alerts
-where date >= current_date - interval '30 days'
-group by alert_type
-order by total desc
-```
+# Alertas Climáticos — Santa Catarina
 
-```sql contagem_por_severidade
-with severidades as (
-  select 'critical' as severidade, 1 as ord union all
-  select 'high',   2 union all
-  select 'medium', 3 union all
-  select 'low',    4
-),
-atual as (
-  select severity as severidade, count(*) as total
-  from weather_dw.mart_climate__alerts
-  where date >= current_date - interval '30 days'
-    and alert_type != '__no_alerts__'
-  group by severity
-)
-select s.severidade, coalesce(a.total, 0) as total
-from severidades s
-left join atual a on s.severidade = a.severidade
-order by s.ord
-```
+Geadas na Serra, chuvas torrenciais no Vale do Itajaí e ondas de calor no Oeste fazem parte do calendário catarinense. Esta página responde: **quais eventos aconteceram, onde, com que severidade, e quais valores os causaram?**
 
-```sql historico_alertas_diario
-select
-  date,
-  count(*)                                          as total_alertas,
-  count(*) filter (where severity = 'critical')                    as criticos,
-  count(*) filter (where severity = 'high')                        as altos
-from weather_dw.mart_climate__alerts
-where date >= current_date - interval '60 days'
-group by date
-order by date
-```
+A diferença entre dados climáticos e alertas climáticos é a **ação**. Enquanto as páginas anteriores descrevem o clima, esta identifica situações que ultrapassaram limiares definidos de risco. A página serve ao analista que quer entender padrões históricos e ao gestor que precisa acompanhar eventos recentes — basta ajustar o filtro de período.
 
-```sql cidades_mais_alertas
-select
-  city_name,
-  state_name,
-  region,
-  count(*)                                          as total_alertas,
-  count(*) filter (where severity = 'critical')                    as criticos,
-  string_agg(distinct alert_type, ', ')             as tipos_detectados
-from weather_dw.mart_climate__alerts
-where date >= current_date - interval '30 days'
-group by city_name, state_name, region
-order by total_alertas desc
-limit 15
-```
-
-```sql alertas_criticos
-select
-  date,
-  city_name,
-  state_name,
-  alert_type,
-  temp_max_c,
-  precipitation_mm,
-  wind_speed_max_kmh,
-  uv_index_max
-from weather_dw.mart_climate__alerts
-where severity = 'critical'
-  and date >= current_date - interval '30 days'
-order by date desc
-```
-
-# Alertas Climáticos
-
-Eventos climáticos extremos detectados nos **últimos 30 dias**.
+---
 
 <BigValue
-  data={contagem_por_severidade}
-  value="total"
+  data={scorecards}
+  value="total_alertas"
+  title="Total de Alertas"
+/>
+<BigValue
+  data={scorecards}
+  value="criticos"
   title="Alertas Críticos"
-  filter="severidade = 'critical'"
 />
 <BigValue
-  data={contagem_por_severidade}
-  value="total"
+  data={scorecards}
+  value="altos"
   title="Alertas Altos"
-  filter="severidade = 'high'"
 />
 <BigValue
-  data={contagem_por_severidade}
-  value="total"
-  title="Alertas Médios"
-  filter="severidade = 'medium'"
+  data={scorecards}
+  value="municipios_afetados"
+  title="Municípios Afetados"
 />
 
 ---
 
-## Evolução Diária de Alertas
+## Frequência por Tipo de Alerta
 
-{#if historico_alertas_diario.length > 0}
-
-<AreaChart
-  data={historico_alertas_diario}
-  x="date"
-  y={["criticos", "altos", "total_alertas"]}
-  yAxisTitle="Número de alertas"
-  title="Alertas por dia (últimos 60 dias)"
-  xFmt="dd/MM/yyyy"
-/>
-
-{:else}
-
-> Nenhum alerta nos últimos 60 dias.
-
-{/if}
-
----
-
-## Alertas por Tipo
-
-{#if contagem_por_tipo.length > 0}
+Qual fenômeno extremo foi mais frequente no período? Em Santa Catarina, a distribuição entre `frost`, `heavy_rain` e `heat_anomaly` varia bastante por estação — este gráfico torna essa sazonalidade visível e comparável entre períodos.
 
 <BarChart
-  data={contagem_por_tipo}
-  x="tipo_alerta"
-  y={["criticos", "altos", "medios", "baixos"]}
+  data={frequencia_por_tipo}
+  x="tipo"
+  y={["critico", "alto", "medio", "baixo"]}
   yAxisTitle="Ocorrências"
-  title="Breakdown por severidade dentro de cada tipo"
   type="stacked"
+  colorPalette={["#B2182B", "#EF8A62", "#FDD49E", "#D9F0D3"]}
+  labels
 />
 
-{:else}
+---
 
-> Nenhum alerta por tipo nos últimos 30 dias.
+## Alertas por Região e Severidade
 
-{/if}
+Algumas regiões acumulam muitos alertas de baixa severidade; outras registram poucos eventos mas predominantemente críticos. Essa distinção é essencial para priorizar atenção — volume alto nem sempre significa risco alto.
+
+<BarChart
+  data={alertas_por_regiao}
+  x="regiao"
+  y={["critico", "alto", "medio", "baixo"]}
+  yAxisTitle="Número de alertas"
+  type="stacked"
+  swapXY=true
+  colorPalette={["#B2182B", "#EF8A62", "#FDD49E", "#D9F0D3"]}
+/>
 
 ---
 
-## Cidades com Mais Alertas
+## Detalhamento dos Eventos
 
-{#if cidades_mais_alertas.length > 0}
+Cada linha é um evento climático extremo com os valores exatos que acionaram o alerta. Use esta tabela para verificar a origem de cada alerta, investigar casos específicos ou validar se os limiares do pipeline estão gerando alertas coerentes com a realidade observada.
 
-<DataTable data={cidades_mais_alertas}>
-  <Column id="city_name" title="Cidade" />
-  <Column id="state_name" title="UF" />
-  <Column id="region" title="Região" />
-  <Column id="total_alertas" title="Total" />
-  <Column id="criticos" title="Críticos" contentType="colorscale" />
-  <Column id="tipos_detectados" title="Tipos Detectados" />
-</DataTable>
-
-{:else}
-
-> Nenhuma cidade com alertas nos últimos 30 dias.
-
-{/if}
-
----
-
-## Alertas Críticos — Detalhes
-
-{#if alertas_criticos.length > 0}
-
-<DataTable data={alertas_criticos} rows=20>
+<DataTable data={tabela_eventos} rows=20 search=true>
   <Column id="date" title="Data" fmt="dd/MM/yyyy" />
-  <Column id="city_name" title="Cidade" />
-  <Column id="state_name" title="Estado" />
+  <Column id="city_name" title="Município" />
+  <Column id="mesoregion" title="Região" />
   <Column id="alert_type" title="Tipo de Alerta" />
-  <Column id="temp_max_c" title="Temp. Máx (°C)" fmt="0.0" />
-  <Column id="precipitation_mm" title="Precip. (mm)" fmt="0.0" />
-  <Column id="wind_speed_max_kmh" title="Vento (km/h)" fmt="0.0" />
-  <Column id="uv_index_max" title="UV Máx" fmt="0.0" />
-</DataTable>
-
-{:else}
-
-> Nenhum alerta crítico nos últimos 30 dias.
-
-{/if}
-
----
-
-## Todos os Alertas Recentes
-
-{#if alertas_recentes.length > 0}
-
-<DataTable data={alertas_recentes} rows=30 search=true>
-  <Column id="date" title="Data" fmt="dd/MM/yyyy" />
-  <Column id="city_name" title="Cidade" />
-  <Column id="region" title="Região" />
-  <Column id="alert_type" title="Tipo" />
   <Column id="severity" title="Severidade" contentType="colorscale" />
-  <Column id="temp_max_c" title="Temp. Máx" fmt="0.0" />
-  <Column id="precipitation_mm" title="Precip." fmt="0.0mm" />
-  <Column id="wind_speed_max_kmh" title="Vento" fmt="0.0 km/h" />
+  <Column id="temp_max_c" title="Temp. Máx (°C)" fmt="0.0" contentType="colorscale" />
+  <Column id="temp_min_c" title="Temp. Mín (°C)" fmt="0.0" />
+  <Column id="temp_anomaly_c" title="Anomalia (°C)" fmt="+0.0;-0.0" contentType="colorscale" />
+  <Column id="precipitation_mm" title="Precip. (mm)" fmt="0.0" contentType="colorscale" />
+  <Column id="wind_speed_max_kmh" title="Vento (km/h)" fmt="0.0" />
+  <Column id="uv_index_max" title="UV Máx" fmt="0" />
 </DataTable>
-
-{:else}
-
-> Nenhum alerta recente nos últimos 30 dias.
-
-{/if}
 
 ---
 
-**Navegação:** [Início](/) · [Temperatura](/temperatura) · [Precipitação](/precipitacao)
+**Navegação:** [Início](/) · [Temperatura](/temperatura) · [Precipitação](/precipitacao) · [Horário](/horario)

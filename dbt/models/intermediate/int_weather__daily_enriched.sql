@@ -26,6 +26,7 @@ joined as (
         l.state_name,
         l.country,
         l.region,
+        l.mesoregion,
         l.latitude,
         l.longitude,
         l.altitude_m,

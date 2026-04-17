@@ -25,6 +25,24 @@ export const entries = () => [
 ];
 </script>
 
+```sql meses_disponiveis
+select distinct
+  year_month as value,
+  year_month as label
+from weather_dw.mart_climate__daily_facts
+where location_id = '${params.cidade}'
+order by year_month desc
+limit 60
+```
+
+<Dropdown
+  name="ano_mes"
+  data={meses_disponiveis}
+  value="value"
+  label="label"
+  title="Mês/Ano"
+/>
+
 ```sql info_cidade
 select distinct
   city_name,
@@ -39,7 +57,7 @@ where location_id = '${params.cidade}'
 limit 1
 ```
 
-```sql serie_90d
+```sql serie_mensal
 select
   date,
   temp_max_c,
@@ -58,24 +76,24 @@ select
   is_weekend
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and date >= current_date - interval '90 days'
+  and year_month = '${inputs.ano_mes.value}'
 order by date
 ```
 
 ```sql resumo_periodo
 select
-  round(avg(temp_max_c), 1)              as media_maxima,
-  round(avg(temp_min_c), 1)             as media_minima,
-  round(avg(temp_avg_c), 1)             as media_temperatura,
-  round(max(temp_max_c), 1)             as recorde_calor,
-  round(min(temp_min_c), 1)             as recorde_frio,
-  round(sum(precipitation_mm), 0)       as chuva_acumulada_mm,
-  count(*) filter (where precipitation_mm > 0)         as dias_com_chuva,
-  round(avg(daylight_hours), 1)         as horas_luz_media,
-  round(avg(temp_anomaly_c), 2)         as anomalia_media_c
+  round(avg(temp_max_c), 1)         as media_maxima,
+  round(avg(temp_min_c), 1)         as media_minima,
+  round(avg(temp_avg_c), 1)         as media_temperatura,
+  round(max(temp_max_c), 1)         as recorde_calor,
+  round(min(temp_min_c), 1)         as recorde_frio,
+  round(sum(precipitation_mm), 0)   as chuva_acumulada_mm,
+  count(*) filter (where precipitation_mm > 0) as dias_com_chuva,
+  round(avg(daylight_hours), 1)     as horas_luz_media,
+  round(avg(temp_anomaly_c), 2)     as anomalia_media_c
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and date >= current_date - interval '90 days'
+  and year_month = '${inputs.ano_mes.value}'
 ```
 
 ```sql alertas_cidade
@@ -91,18 +109,19 @@ select
   uv_index_max
 from weather_dw.mart_climate__alerts
 where location_id = '${params.cidade}'
-  and date >= current_date - interval '90 days'
+  and strftime(date, '%Y-%m') = '${inputs.ano_mes.value}'
+  and alert_type != '__no_alerts__'
 order by date desc
 ```
 
 ```sql uv_distribuicao
 select
-  uv_risk_level                         as nivel_uv,
-  count(*)                              as dias,
-  round(avg(uv_index_max), 1)          as uv_medio
+  uv_risk_level                        as nivel_uv,
+  count(*)                             as dias,
+  round(avg(uv_index_max), 1)         as uv_medio
 from weather_dw.mart_climate__daily_facts
 where location_id = '${params.cidade}'
-  and date >= current_date - interval '90 days'
+  and year_month = '${inputs.ano_mes.value}'
 group by uv_risk_level
 order by
   case uv_risk_level
@@ -116,7 +135,7 @@ order by
 
 ```sql lista_todas_cidades
 select
-  location_id  as cidade,
+  location_id as cidade,
   city_name,
   state_name,
   region
@@ -135,25 +154,26 @@ order by region, city_name
 
 {/if}
 
-**Período:** últimos 90 dias
+---
 
-<BigValue data={resumo_periodo} value="media_temperatura" title="Temp. Média" fmt="0.0" />
-<BigValue data={resumo_periodo} value="recorde_calor" title="Recorde de Calor" fmt="0.0" />
-<BigValue data={resumo_periodo} value="recorde_frio" title="Recorde de Frio" fmt="0.0" />
+<BigValue data={resumo_periodo} value="media_temperatura" title="Temp. Média" fmt="0.0°C" />
+<BigValue data={resumo_periodo} value="recorde_calor" title="Recorde de Calor" fmt="0.0°C" />
+<BigValue data={resumo_periodo} value="recorde_frio" title="Recorde de Frio" fmt="0.0°C" />
 <BigValue data={resumo_periodo} value="chuva_acumulada_mm" title="Chuva Acumulada" fmt="0mm" />
 <BigValue data={resumo_periodo} value="dias_com_chuva" title="Dias com Chuva" />
-<BigValue data={resumo_periodo} value="anomalia_media_c" title="Anomalia Média" fmt="+0.00;-0.00" />
+<BigValue data={resumo_periodo} value="anomalia_media_c" title="Anomalia Média" fmt="+0.00;-0.00°C" />
 
 ---
 
 ## Temperatura — Série Temporal
 
 <LineChart
-  data={serie_90d}
+  data={serie_mensal}
   x="date"
   y={["temp_max_c", "temp_avg_c", "temp_min_c", "temp_avg_30d_c"]}
   yAxisTitle="Temperatura (°C)"
   xFmt="dd/MM/yyyy"
+  colorPalette={["#D73027", "#FC8D59", "#4575B4", "#999999"]}
   labels
 />
 
@@ -162,11 +182,11 @@ order by region, city_name
 ## Precipitação Diária
 
 <BarChart
-  data={serie_90d}
+  data={serie_mensal}
   x="date"
   y="precipitation_mm"
   yAxisTitle="Precipitação (mm)"
-  colorPalette={["#3498db"]}
+  colorPalette={["#3182BD"]}
   xFmt="dd/MM/yyyy"
 />
 
@@ -175,13 +195,11 @@ order by region, city_name
 ## Anomalia de Temperatura
 
 <LineChart
-  data={serie_90d}
+  data={serie_mensal}
   x="date"
   y="temp_anomaly_c"
   yAxisTitle="Anomalia (°C)"
-  yMin={-10}
-  yMax={10}
-  colorPalette={["#e74c3c"]}
+  colorPalette={["#E74C3C"]}
   xFmt="dd/MM/yyyy"
 />
 
@@ -195,11 +213,12 @@ order by region, city_name
   y="dias"
   yAxisTitle="Número de dias"
   title="Dias por nível de risco UV (OMS)"
+  colorPalette={["#2ECC71", "#F1C40F", "#E67E22", "#E74C3C", "#8E44AD"]}
 />
 
 ---
 
-## Alertas Recentes
+## Alertas do Período
 
 {#if alertas_cidade.length > 0}
 
@@ -215,7 +234,7 @@ order by region, city_name
 
 {:else}
 
-> Nenhum alerta climático extremo nos últimos 90 dias.
+> Nenhum alerta climático extremo no período selecionado.
 
 {/if}
 
@@ -224,12 +243,11 @@ order by region, city_name
 ## Outras Cidades
 
 <DataTable data={lista_todas_cidades} rows=10 search=true>
-  <Column id="city_name" title="Cidade" />
-  <Column id="cidade" title="ID" />
+  <Column id="city_name" title="Cidade" link="/cidades/{cidade}" />
   <Column id="state_name" title="UF" />
   <Column id="region" title="Região" />
 </DataTable>
 
 ---
 
-**Navegação:** [Início](/) · [Temperatura](/temperatura) · [Precipitação](/precipitacao) · [Alertas](/alertas)
+**Navegação:** [Início](/) · [Temperatura](/temperatura) · [Precipitação](/precipitacao) · [Alertas](/alertas) · [Horário](/horario)
