@@ -19,11 +19,13 @@ dbt/
 │   │   ├── schema.yml          # Documentação e testes dos modelos staging
 │   │   ├── stg_weather__hourly.sql
 │   │   └── stg_weather__daily.sql
-│   ├── intermediate/           # (para joins futuros)
+│   ├── intermediate/
+│   │   └── int_weather__daily_enriched.sql  # join daily + seed locations (enriquece com mesoregion)
 │   └── marts/
 │       ├── schema.yml          # Documentação e testes dos marts
-│       ├── mart_climate__daily_facts.sql
-│       └── mart_climate__alerts.sql
+│       ├── mart_climate__daily_facts.sql    # 1 linha por município × dia (últimos 12 meses)
+│       ├── mart_climate__hourly_facts.sql   # 1 linha por município × hora (últimos 30 dias)
+│       └── mart_climate__alerts.sql         # 1 linha por evento extremo (histórico completo)
 ├── tests/                      # Testes personalizados (singular tests)
 │   ├── test_temp_min_less_than_max.sql
 │   ├── test_no_date_gaps_per_location.sql
@@ -33,7 +35,7 @@ dbt/
 ├── macros/
 │   └── weather_utils.sql       # wmo_code_to_label, beaufort, celsius_to_f
 └── seeds/
-    └── locations.csv           # cidades brasileiras monitoradas
+    └── locations.csv           # 295 municípios de Santa Catarina monitorados
 ```
 
 ## Setup inicial
@@ -45,7 +47,7 @@ Copy-Item "C:\Dev\Analytics-Engineer\Weather-Analytics\dbt\profiles.yml.example"
           "$env:USERPROFILE\.dbt\profiles.yml"
 ```
 
-> O build e a subida dos containers e feita a partir da pasta `postgresql/`.
+> O build e a subida dos containers é feita a partir da pasta `postgresql/`.
 > Ver `postgresql/README.md`.
 
 ## Executando o pipeline
@@ -75,6 +77,21 @@ docker compose run --rm dbt-run-staging
 docker compose run --rm dbt-run-marts
 ```
 
+## Executar em producao (BigQuery)
+
+```bash
+cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
+
+DBT_TARGET=prod docker compose run --rm dbt-build
+```
+
+PowerShell:
+
+```powershell
+$env:DBT_TARGET="prod"; docker compose run --rm dbt-seed
+$env:DBT_TARGET="prod"; docker compose run --rm dbt-build
+```
+
 ## Documentacao (http://localhost:8080)
 
 ```bash
@@ -87,13 +104,38 @@ docker compose run --rm dbt-docs-generate
 docker compose run --rm --service-ports dbt-docs
 ```
 
-## Executar em producao (BigQuery)
+## Modelos
 
-```bash
-cd C:\Dev\Analytics-Engineer\Weather-Analytics\postgresql
+### Staging
 
-DBT_TARGET=prod docker compose run --rm dbt-build
-```
+| Modelo | Source | O que faz |
+|--------|--------|-----------|
+| `stg_weather__daily` | `raw.open_meteo_daily` | Renomeia colunas, tipagem, filtragem básica |
+| `stg_weather__hourly` | `raw.open_meteo_hourly` | Renomeia colunas, tipagem, código WMO traduzido |
+
+### Intermediate
+
+| Modelo | Inputs | O que faz |
+|--------|--------|-----------|
+| `int_weather__daily_enriched` | `stg_weather__daily` + `seeds.locations` | Join que acrescenta city_name, state_name, region, **mesoregion**, latitude, longitude, altitude ao dado diário |
+
+### Marts
+
+| Modelo | Granularidade | Materialização | Período |
+|--------|---------------|----------------|---------|
+| `mart_climate__daily_facts` | Município × dia | Table (particionada por date) | Últimos 12 meses |
+| `mart_climate__hourly_facts` | Município × hora | Table (particionada por date) | Últimos 30 dias |
+| `mart_climate__alerts` | Evento extremo | Table | Histórico completo |
+
+### Colunas-chave compartilhadas
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `location_id` | string | Slug do município (ex: `florianopolis`) |
+| `city_name` | string | Nome completo |
+| `mesoregion` | string | Mesorregião de SC (ex: `Grande Florianópolis`) |
+| `region` | string | Macrorregião brasileira (sempre `Sul` para SC) |
+| `year_month` | string | Formato `YYYY-MM` (pré-computado para filtros no Evidence) |
 
 ## Testes implementados
 
@@ -101,14 +143,14 @@ DBT_TARGET=prod docker compose run --rm dbt-build
 
 | Modelo | Coluna | Teste |
 |--------|--------|-------|
-| staging/hourly | location_id | not_null, accepted_values |
-| staging/hourly | temperature_c | accepted_range (-20..55) |
-| staging/hourly | relative_humidity_pct | accepted_range (0..100) |
-| marts/daily_facts | temp_max_c | not_null, accepted_range |
-| marts/daily_facts | precipitation_class | accepted_values |
-| marts/daily_facts | uv_risk_level | accepted_values |
-| marts/alerts | alert_type | not_null, accepted_values |
-| marts/alerts | severity | accepted_values |
+| `stg_weather__hourly` | `location_id` | not_null, accepted_values |
+| `stg_weather__hourly` | `temperature_c` | accepted_range (-20..55) |
+| `stg_weather__hourly` | `relative_humidity_pct` | accepted_range (0..100) |
+| `mart_climate__daily_facts` | `temp_max_c` | not_null, accepted_range |
+| `mart_climate__daily_facts` | `precipitation_class` | accepted_values |
+| `mart_climate__daily_facts` | `uv_risk_level` | accepted_values |
+| `mart_climate__alerts` | `alert_type` | not_null, accepted_values |
+| `mart_climate__alerts` | `severity` | accepted_values |
 
 ### Testes personalizados (tests/)
 
@@ -123,11 +165,15 @@ DBT_TARGET=prod docker compose run --rm dbt-build
 ## Lineage
 
 ```
-raw.open_meteo_hourly  --> stg_weather__hourly
-                                   |
-raw.open_meteo_daily   --> stg_weather__daily --> mart_climate__daily_facts
-                                                          |
-seeds.locations        -----------------------------------+
-                                                          |
-                                              mart_climate__alerts
+raw.open_meteo_daily  ──► stg_weather__daily ──► int_weather__daily_enriched
+                                                           │
+seeds.locations ───────────────────────────────────────────┤
+                                                           │
+                                              ┌────────────┴────────────┐
+                                              │                         │
+                                    mart_climate__daily_facts   mart_climate__alerts
+                                    (295 mun × 12 meses)        (eventos extremos)
+
+raw.open_meteo_hourly ──► stg_weather__hourly ──► mart_climate__hourly_facts
+                                                   (295 mun × últimos 30 dias)
 ```

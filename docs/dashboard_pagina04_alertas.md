@@ -1,7 +1,8 @@
 # Página 04 — Alertas Climáticos
 
-**Relatório:** Weather Analytics — Looker Studio
-**Fonte:** `weather_dw.marts.mart_climate__alerts`
+**Ferramenta:** Evidence.dev
+**Rota:** `/alertas`
+**Fonte:** `weather_dw.mart_climate__alerts`
 
 ---
 
@@ -9,30 +10,64 @@
 
 > "Eventos climáticos extremos não são anomalias raras em Santa Catarina — geadas na Serra, chuvas torrenciais no Vale do Itajaí e ondas de calor no Oeste fazem parte do calendário. Esta página responde: *quais eventos aconteceram, onde, com que severidade, e quais valores os causaram?*"
 
-A diferença entre dados climáticos e alertas climáticos é a **ação**. Enquanto as páginas anteriores descrevem o clima, esta página identifica situações que exigem atenção. Cada registro aqui não é apenas uma observação meteorológica — é um evento que ultrapassou um limiar definido de risco.
+A diferença entre dados climáticos e alertas climáticos é a **ação**. Enquanto as páginas anteriores descrevem o clima, esta identifica situações que ultrapassaram limiares definidos de risco. Cada registro não é apenas uma observação meteorológica — é um evento que acionou critérios configurados no pipeline dbt.
 
-A página tem duplo uso: **monitoramento operacional** para acompanhar eventos recentes nas últimas horas ou dias, e **análise histórica** para identificar padrões de risco por tipo de evento, por região e por sazonalidade. O mesmo dashboard serve ao analista que quer entender o passado e ao gestor que precisa agir no presente.
-
----
-
-### Scorecards — Visão Rápida dos Alertas
-
-Os cartões de total de alertas, alertas críticos, alertas de alta severidade e municípios afetados são a primeira leitura da página. Eles respondem em segundos se o período foi calmo ou crítico — e se os eventos concentraram-se em poucos municípios ou se espalharam pelo estado.
+A página tem duplo uso: **monitoramento operacional** para acompanhar eventos recentes, e **análise histórica** para identificar padrões de risco por tipo de alerta, por mesorregião e por sazonalidade. O filtro de período permite navegar por qualquer mês desde 2021.
 
 ---
 
-### Barras — Frequência por Tipo de Alerta
+## Filtros
 
-O gráfico de barras por tipo de alerta revela qual fenômeno extremo é mais frequente no período analisado. Em Santa Catarina, a distribuição entre `frost`, `heavy_rain` e `heat_anomaly` costuma variar bastante conforme a estação — esse gráfico torna essa sazonalidade visível e comparável entre períodos.
+| Filtro | Tipo | Comportamento padrão |
+|--------|------|----------------------|
+| Mês/Ano | Dropdown | Mês mais recente com alertas |
+| Mesorregião | Dropdown | Todas as Mesorregiões |
+| Município | Dropdown | Todos (cascateado da mesorregião) |
+| Tipo de Alerta | Dropdown | Todos os Tipos |
+| Severidade | ButtonGroup | Todas (Crítico / Alto / Médio / Baixo) |
+
+Os cinco filtros são aplicados em conjunto em todas as queries da página.
 
 ---
 
-### Barras Empilhadas — Alertas por Região e Severidade
+## Tipos de alerta
 
-A distribuição geográfica dos alertas, segmentada por severidade, responde onde os eventos são mais perigosos. Algumas regiões podem ter muitos alertas de baixa severidade; outras, poucos alertas mas predominantemente críticos. Essa distinção é essencial para priorização de recursos e atenção.
+| Tipo | Descrição |
+|------|-----------|
+| `frost` | Temperatura mínima ≤ 2°C |
+| `heat_anomaly` | Anomalia de temperatura > limiar configurado |
+| `cold_anomaly` | Anomalia de temperatura < limiar configurado |
+| `heavy_rain` | Precipitação diária acima do limiar de chuva forte |
+| `precip_anomaly` | Anomalia de precipitação acima do limiar |
 
 ---
 
-### Tabela — Rastreabilidade dos Eventos
+## Componentes
 
-A tabela é a camada de auditoria da página. Cada linha é um evento climático extremo com os valores exatos que acionaram o alerta — temperatura, precipitação, vento, UV e anomalia. Ela permite ao analista verificar a origem de cada alerta, investigar casos específicos e validar se os limiares configurados no pipeline estão gerando alertas coerentes com a realidade observada.
+### Scorecards — Visão Rápida
+
+Quatro BigValues: total de alertas, alertas críticos, alertas altos e municípios afetados no período filtrado.
+
+---
+
+### BarChart — Frequência por Tipo de Alerta
+
+Barras empilhadas com quatro séries de severidade (crítico, alto, médio, baixo) para cada tipo de alerta. Revela qual fenômeno extremo foi mais frequente no período e qual a distribuição de severidade dentro de cada tipo.
+
+Paleta: vermelho (crítico) → laranja → amarelo → verde claro (baixo).
+
+---
+
+### BarChart — Alertas por Mesorregião e Severidade
+
+Barras horizontais empilhadas mostrando o volume total de alertas por mesorregião de SC, com mesma segmentação de severidade. Identifica quais sub-regiões acumulam mais eventos e se o risco é volumoso (muitos alertas leves) ou concentrado (poucos alertas críticos).
+
+---
+
+### DataTable — Detalhamento dos Eventos
+
+Tabela paginada (20 linhas) com busca livre. Cada linha é um evento extremo com:
+- Data, Município, Mesorregião, Tipo de Alerta, Severidade
+- Temperatura máx/mín, Anomalia de temperatura, Precipitação, Vento máx, UV máx
+
+Ordenada por data decrescente. Permite auditar a origem de cada alerta e validar se os limiares do pipeline estão gerando alertas coerentes com os valores observados.
