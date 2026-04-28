@@ -397,7 +397,7 @@ O cache de queries tem TTL de 1h. Para forçar recarga durante testes:
 
 ---
 
-### Deploy no Lightsail — passo a passo
+### Deploy na AWS (Maquina Linux) — passo a passo
 
 #### 1. Preparar o servidor
 
