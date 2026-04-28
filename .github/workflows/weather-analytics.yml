@@ -1,0 +1,59 @@
+name: Pipeline Weather Analytics
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Weather-Analytics/evidence/**'
+      - '.github/workflows/weather-analytics.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: Weather-Analytics/evidence/package-lock.json
+
+      - name: Instala dependencias
+        working-directory: Weather-Analytics/evidence
+        run: npm ci
+
+      - name: Sources Evidence (BigQuery)
+        working-directory: Weather-Analytics/evidence
+        run: npm run sources
+        env:
+          EVIDENCE_SOURCE__weather_dw__authenticator: service-account
+          EVIDENCE_SOURCE__weather_dw__project_id: ${{ secrets.EVIDENCE_SOURCE__weather_dw__project_id }}
+          EVIDENCE_SOURCE__weather_dw__dataset: ${{ secrets.EVIDENCE_SOURCE__weather_dw__dataset }}
+          EVIDENCE_SOURCE__weather_dw__location: ${{ secrets.EVIDENCE_SOURCE__weather_dw__location }}
+          EVIDENCE_SOURCE__weather_dw__client_email: ${{ secrets.EVIDENCE_SOURCE__weather_dw__client_email }}
+          EVIDENCE_SOURCE__weather_dw__private_key: ${{ secrets.EVIDENCE_SOURCE__weather_dw__private_key }}
+          EVIDENCE_DISABLE_INCLUDE: "true"
+
+      - name: Build Evidence
+        working-directory: Weather-Analytics/evidence
+        run: npm run build
+        env:
+          EVIDENCE_SOURCE__weather_dw__authenticator: service-account
+          EVIDENCE_SOURCE__weather_dw__project_id: ${{ secrets.EVIDENCE_SOURCE__weather_dw__project_id }}
+          EVIDENCE_SOURCE__weather_dw__dataset: ${{ secrets.EVIDENCE_SOURCE__weather_dw__dataset }}
+          EVIDENCE_SOURCE__weather_dw__location: ${{ secrets.EVIDENCE_SOURCE__weather_dw__location }}
+          EVIDENCE_SOURCE__weather_dw__client_email: ${{ secrets.EVIDENCE_SOURCE__weather_dw__client_email }}
+          EVIDENCE_SOURCE__weather_dw__private_key: ${{ secrets.EVIDENCE_SOURCE__weather_dw__private_key }}
+          EVIDENCE_DISABLE_INCLUDE: "true"
+
+      - name: Publica no GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: Weather-Analytics/evidence/build
+          destination_dir: Weather-Analytics
