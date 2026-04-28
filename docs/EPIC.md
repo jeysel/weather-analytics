@@ -54,9 +54,9 @@ Transformar dados brutos em modelo dimensional analytics com camadas staging →
 **Esforço:** Médio  
 **Status:** ✅ Concluído
 
-Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
+Publicar dashboard Streamlit no AWS Lightsail com Nginx + systemd, servindo 6 páginas analíticas e análise comparativa conectadas diretamente ao BigQuery.
 
-**Valor:** Visualização tempo real democratiza acesso a insights (não apenas analistas técnicos).
+**Valor:** Visualização tempo real com interatividade full-stack democratiza acesso a insights (não apenas analistas técnicos).
 
 ---
 
@@ -66,8 +66,8 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 - [x] Pipeline completo: API → PostgreSQL → BigQuery → dbt → Dashboard
 - [x] 15+ localidades brasileiras monitoradas
 - [x] 40+ testes automatizados data quality
-- [x] CI/CD funcional (deploy automático GitHub Actions)
-- [x] Dashboard público acessível (uptime > 95%)
+- [x] Deploy Streamlit em produção (Nginx + systemd no Lightsail)
+- [x] Dashboard acessível via HTTPS com subdomínio dedicado (uptime > 95%)
 
 ### Critérios de Negócio
 - [x] Dados atualizados diariamente (freshness < 24h)
@@ -77,7 +77,7 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 ### Critérios de Portfolio
 - [x] Código documentado (schema.yml completo)
 - [x] README profissional com setup reproduzível
-- [x] Demonstrar stack moderna (dbt, Airbyte, BigQuery, Evidence.dev)
+- [x] Demonstrar stack moderna (dbt, Airflow, BigQuery, Streamlit)
 
 ---
 
@@ -105,10 +105,10 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 - Window functions (médias móveis, anomalias)
 - Testes data quality
 
-**Sprint 3 (Semana 5-6):** Dashboard + CI/CD
-- Setup Evidence.dev
-- Visualizações interativas
-- GitHub Actions deploy automático
+**Sprint 3 (Semana 5-6):** Dashboard em Produção
+- Setup Streamlit + BigQuery SDK
+- 6 páginas analíticas + análise comparativa
+- Deploy Lightsail com Nginx + systemd + SSL
 
 **Sprint 4 (Semana 7):** Refinamento
 - Otimizações performance
@@ -143,7 +143,6 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático.
 
 ## 🔗 Referências
 
-**Dashboard ao vivo:** https://jeysel.github.io/Analytics-Engineer/
 **Código fonte:** https://github.com/jeysel/Analytics-Engineer/tree/main/Weather-Analytics  
 **Documentação dbt:** [schema.yml](../dbt/models/schema.yml)
 

@@ -1,6 +1,6 @@
 # Weather Analytics Pipeline
 
-Open-Meteo API → collector.py (PostgreSQL) → Airflow → BigQuery → dbt → BigQuery DW
+Open-Meteo API → collector.py (PostgreSQL) → Airflow → BigQuery → dbt → BigQuery DW → Streamlit
 
 ## Arquitetura em Camadas
 
@@ -12,16 +12,16 @@ Open-Meteo API → collector.py (PostgreSQL) → Airflow → BigQuery → dbt �
 | Ingest | `dag_weather_ingest` (Python + BigQuery SDK) | Replica `raw.*` do PostgreSQL para o BigQuery de forma incremental |
 | Transform | dbt | Lê `weather_raw` (prod) ou `raw` (dev) → materializa marts |
 | Warehouse | BigQuery | Dataset `weather_dw` com tabelas analíticas finais |
-| Visualização | **Evidence.dev** | 5 páginas analíticas + drill-down; DuckDB WASM no browser; deploy via GitHub Pages |
+| Visualização | **Streamlit** | 6 páginas analíticas + análise comparativa; deploy no Lightsail com Nginx + systemd |
 
 ## Estrutura
 
 ```
 Weather-Analytics/
-├── airflow/        # Orquestração: 3 DAGs (coleta + ingestão + transformação)
+├── airflow/        # Orquestração: 4 DAGs (coleta + ingestão + transformação + backfill)
 ├── postgresql/     # Container Ubuntu 24.04 + PostgreSQL 17 + app coletor
 ├── dbt/            # Transformações: staging → marts (dev: Postgres, prod: BigQuery)
-├── evidence/       # Dashboards interativos gerados a partir dos marts do dbt
+├── streamlit/      # Dashboard interativo em Python; deploy no Lightsail
 └── docs/           # Arquitetura e decisões
 ```
 
@@ -34,7 +34,6 @@ Weather-Analytics/
 - Conta GCP com BigQuery e um Service Account com roles: `BigQuery Data Editor` + `BigQuery Job User`
 
 ---
-
 
 ## 🐳 PostgreSQL + Collector
 
@@ -207,7 +206,7 @@ TRUNCATE TABLE `seu-projeto.weather_raw.open_meteo_hourly`;
 
 > Substitua `seu-projeto` pelo seu `GCP_PROJECT_ID`.
 
-#### Passo 2 — Despauar a DAG
+#### Passo 2 — Despausar a DAG
 
 ```bash
 docker exec -it airflow_scheduler airflow dags unpause dag_weather_backfill
@@ -308,21 +307,163 @@ $env:DBT_TARGET="prod"; $env:DBT_SOURCE_DATABASE="weather-analytics-490113"; $en
 
 ---
 
-## 📈 Visualizar os Dashboards (Evidence.dev)
+## 🎯 Streamlit — Dashboard em Produção
 
-```bash
-cd evidence
-npm run dev    # servidor local em http://localhost:3000
+Dashboard interativo construído em Python, conectado diretamente ao BigQuery via `google-cloud-bigquery`.
+Deploy no AWS Lightsail com Nginx como proxy reverso e systemd gerenciando o processo.
+
+### Estrutura
+
+```
+streamlit/
+├── app.py                        ← Home: KPIs + linha de temperatura + mapa SC
+├── pages/
+│   ├── 1_Temperatura.py          ← Rankings hot/cold, tendência mesorregião, heatmap anomalia
+│   ├── 2_Precipitacao.py         ← Top 20 acumulado, pizza de classes, heatmap diário
+│   ├── 3_Alertas.py              ← KPIs severidade, barras por tipo, tabela filtrável
+│   ├── 4_Horario.py              ← Temp+umidade, vento+chuva, perfil médio 24h
+│   └── 5_Cidades.py              ← Perfil completo por município (temp/precip/vento/alertas)
+├── utils/
+│   └── bigquery.py               ← Client singleton (@cache_resource) + query (@cache_data 1h)
+├── .streamlit/config.toml        ← Tema dark + server escutando só 127.0.0.1:8501
+├── requirements.txt
+├── .env.example
+└── deploy/
+    ├── nginx-weather.conf        ← Proxy com WebSocket headers (obrigatório pro Streamlit)
+    └── weather-streamlit.service ← systemd com EnvironmentFile e restart automático
 ```
 
-| Página | URL | Conteúdo |
-|--------|-----|----------|
-| Visão Geral | `/` | Scorecards do período, série de anomalia, mapa de bolhas municipal |
-| Temperatura | `/temperatura` | Ranking por mesorregião, amplitude térmica, comparativo de municípios |
-| Precipitação | `/precipitacao` | Acumulados por município, heatmap de intensidade diária, distribuição por classe |
-| Alertas | `/alertas` | Eventos extremos por tipo e mesorregião, tabela auditável com filtros |
-| Horário | `/horario` | Padrões intradiários, detalhamento hora a hora por município e dia |
-| Cidade | `/cidades/[cidade]` | Drill-down completo por município: temperatura, chuva, UV, alertas |
+### Executar localmente (Windows)
+
+#### 1. Criar o ambiente virtual
+
+```powershell
+cd streamlit
+python.exe -m pip install --upgrade pip
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+#### 2. Configurar credenciais
+
+```powershell
+copy .env.example .env
+```
+
+Editar o `.env` com os valores locais:
+
+```env
+GCP_PROJECT_ID=seu-projeto-gcp
+BIGQUERY_DATASET=marts
+BIGQUERY_SEEDS_DATASET=seeds
+GOOGLE_APPLICATION_CREDENTIALS=C:/Users/seu-usuario/secrets/gcp-service-account.json
+```
+
+> O arquivo `gcp-service-account.json` é o mesmo já usado no Airflow (`postgresql/secrets/`).
+> Use barras `/` ou `\\` no caminho — barra invertida simples `\` causa erro no Python.
+
+#### 3. Sobrescrever o endereço para desenvolvimento
+
+O `config.toml` padrão escuta apenas `127.0.0.1` com `headless = true` (modo servidor).
+Para rodar localmente sem precisar alterar o arquivo commitado, passe os overrides via CLI:
+
+```powershell
+streamlit run app.py --server.address localhost --server.headless false
+```
+
+O Streamlit abrirá automaticamente [http://localhost:8501](http://localhost:8501) no browser.
+
+#### 4. Testar cada página
+
+| Página | O que validar |
+|--------|--------------|
+| Home (`app.py`) | KPIs carregam, mapa SC renderiza com pontos |
+| Temperatura | Rankings hot/cold preenchidos, heatmap de anomalia sem erros |
+| Precipitação | Top 20 acumulado, pizza de classes sem fatias zeradas |
+| Alertas | Tabela filtrável responde aos selects de severidade/tipo |
+| Horário | Gráficos de temp+umidade e perfil 24h carregam para qualquer município |
+| Cidades | Dropdown de município funciona e exibe todos os painéis |
+
+#### 5. Verificar o cache
+
+O cache de queries tem TTL de 1h. Para forçar recarga durante testes:
+
+```powershell
+# Na UI do Streamlit: menu ⋮ (canto superior direito) → "Clear cache"
+# Ou reinicie o processo:
+# Ctrl+C no terminal → streamlit run app.py ...
+```
+
+---
+
+### Deploy no Lightsail — passo a passo
+
+#### 1. Preparar o servidor
+
+```bash
+# Instalar Python venv e criar ambiente isolado
+sudo apt install python3-venv python3-pip -y
+python3 -m venv ~/venv/weather
+source ~/venv/weather/bin/activate
+
+# Clonar/atualizar o repositório
+cd ~/Analytics-Engineer/Weather-Analytics/streamlit
+pip install -r requirements.txt
+```
+
+#### 2. Configurar credenciais
+
+```bash
+# Copiar a service account do GCP para o servidor
+mkdir -p ~/secrets
+# scp da sua máquina local:
+# scp postgresql/secrets/gcp-service-account.json ubuntu@<ip>:~/secrets/
+
+# Criar o .env a partir do exemplo
+cp .env.example .env
+nano .env   # preencher GCP_PROJECT_ID e ajustar BIGQUERY_DATASET
+```
+
+> **Atenção nos datasets BigQuery:** o Evidence usa `dataset=marts` — provavelmente `BIGQUERY_DATASET=marts`.
+> Verifique no console GCP quais datasets existem no projeto.
+
+#### 3. Nginx
+
+```bash
+sudo cp deploy/nginx-weather.conf /etc/nginx/sites-available/weather.jeysel.dev
+sudo ln -s /etc/nginx/sites-available/weather.jeysel.dev /etc/nginx/sites-enabled/
+
+# Obter certificado SSL para o novo subdomínio
+sudo certbot certonly --nginx -d weather.jeysel.dev
+
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+#### 4. systemd
+
+```bash
+# Ajustar o caminho do venv no .service se necessário
+sudo cp deploy/weather-streamlit.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable weather-streamlit
+sudo systemctl start weather-streamlit
+
+# Verificar logs
+sudo journalctl -u weather-streamlit -f
+```
+
+### Decisões de arquitetura
+
+| Decisão | Motivo |
+|---------|--------|
+| `@st.cache_data(ttl=3600)` em todas as queries | Evita hits desnecessários no BigQuery; 1h é adequado dado o pipeline diário |
+| `@st.cache_resource` no client BigQuery | Singleton por processo — não re-autentica a cada página |
+| Streamlit escuta só `127.0.0.1` | Nginx faz o proxy; app não fica exposta diretamente |
+| `QUALIFY ROW_NUMBER()` no mapa | Filtra último dia por município sem subquery extra, aproveitando o partition pruning do BigQuery |
+| `clip(lower=1)` nos scatter mapbox | Plotly mapbox falha silenciosamente com tamanho zero |
+
+---
 
 ---
 
@@ -338,22 +479,22 @@ Criar pipeline analytics end-to-end para monitoramento climático em tempo real 
 ### Features Principais
 
 #### Feature 1: Ingestão Automatizada de Dados Climáticos
-**Objetivo:** Coletar dados climáticos de múltiplas localidades via API Open-Meteo
-**Tecnologia:** PostgreSQL + Python + Docker
-**Resultado:** 18 localidades monitoradas, atualização diária automatizada
+**Objetivo:** Coletar dados climáticos de múltiplas localidades via API Open-Meteo  
+**Tecnologia:** PostgreSQL + Python + Docker  
+**Resultado:** 295 municípios de SC monitorados, atualização automática 4×/dia
 
 #### Feature 2: Pipeline ELT com Data Quality
-**Objetivo:** Transformar dados brutos em modelo analytics confiável
-**Tecnologia:** Airflow + BigQuery SDK + dbt
+**Objetivo:** Transformar dados brutos em modelo analytics confiável  
+**Tecnologia:** Airflow + BigQuery SDK + dbt  
 **Resultado:**
 - Camadas staging → intermediate → marts
 - 49 testes automatizados (data quality)
 - Freshness checks diários
 
 #### Feature 3: Dashboard Interativo em Produção
-**Objetivo:** Visualização de insights climáticos em tempo real
-**Tecnologia:** Evidence.dev + GitHub Actions + GitHub Pages
-**Resultado:** 5 páginas analíticas + drill-down por município, publicadas automaticamente via CI/CD
+**Objetivo:** Visualização de insights climáticos em tempo real com interatividade  
+**Tecnologia:** Streamlit + BigQuery + Nginx + systemd (AWS Lightsail)  
+**Resultado:** 6 páginas analíticas (Home, Temperatura, Precipitação, Alertas, Horário, Cidades) + página de Análise Comparativa, servidas com SSL via subdomínio dedicado
 
 ### Processo de Desenvolvimento
 
@@ -372,6 +513,7 @@ Criar pipeline analytics end-to-end para monitoramento climático em tempo real 
 - Smoke tests no CI/CD pipeline
 
 **Deployment:**
-- CI/CD automático via GitHub Actions
+- CI/CD automático via GitHub Actions (Evidence → GitHub Pages)
+- Streamlit gerenciado via systemd com restart automático
 - Deploy incremental (não afeta dados históricos)
-- Rollback automático em caso de falha nos testes
+- Rollback automático em caso de falha nos testes dbt

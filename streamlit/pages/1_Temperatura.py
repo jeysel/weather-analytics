@@ -1,13 +1,21 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from utils.bigquery import query, tbl, MESOREGIONS
+from utils.bigquery import query, tbl
 
 st.set_page_config(page_title="Temperatura | Weather SC", page_icon="🌡️", layout="wide")
 
+_meso_df = query(f"""
+SELECT DISTINCT mesoregion
+FROM {tbl('locations', seeds=True)}
+WHERE mesoregion IS NOT NULL
+ORDER BY mesoregion
+""")
+_meso_list = _meso_df["mesoregion"].tolist() if not _meso_df.empty else []
+
 with st.sidebar:
     st.header("Filtros")
-    meso = st.selectbox("Mesorregião", ["Todas"] + MESOREGIONS)
+    meso = st.selectbox("Mesorregião", ["Todas"] + _meso_list)
     days = st.slider("Período (dias)", 7, 90, 30, step=7)
 
 meso_clause = f"AND mesoregion = '{meso}'" if meso != "Todas" else ""

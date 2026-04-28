@@ -1,9 +1,0 @@
-deployment:
-  basePath: /Analytics-Engineer/Weather-Analytics
-
-plugins:
-  components:
-    "@evidence-dev/core-components": {}
-  datasources:
-    "@evidence-dev/bigquery": {}
-    "@evidence-dev/postgres": {}

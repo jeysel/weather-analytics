@@ -10,7 +10,6 @@ st.title("🕐 Padrão Horário")
 cities_df = query(f"""
 SELECT DISTINCT city_name
 FROM {tbl('mart_climate__hourly_facts')}
-WHERE date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL 7 DAY)
 ORDER BY city_name
 """)
 
@@ -24,7 +23,19 @@ if not city:
     st.info("Selecione um município na barra lateral.")
     st.stop()
 
+max_date_df = query(f"""
+SELECT MAX(date) AS max_date
+FROM {tbl('mart_climate__hourly_facts')}
+WHERE city_name = '{city}'
+""")
+max_date = max_date_df["max_date"].iloc[0] if not max_date_df.empty else None
+
+if max_date is None:
+    st.warning("Sem dados horários para este município.")
+    st.stop()
+
 st.subheader(f"{city} — últimos {days} dias")
+st.caption(f"Dados disponíveis até {max_date}")
 
 tab_serie, tab_vento, tab_padrao = st.tabs(["🌡️ Temperatura & Umidade", "💨 Vento & Chuva", "📊 Padrão 24h"])
 
@@ -34,7 +45,7 @@ with tab_serie:
     SELECT observed_at, temperature_c, relative_humidity_pct
     FROM {tbl('mart_climate__hourly_facts')}
     WHERE city_name = '{city}'
-      AND date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL {days} DAY)
+      AND date >= DATE_SUB(DATE '{max_date}', INTERVAL {days} DAY)
     ORDER BY observed_at
     """)
 
@@ -71,7 +82,7 @@ with tab_vento:
     SELECT observed_at, wind_speed_kmh, precipitation_mm
     FROM {tbl('mart_climate__hourly_facts')}
     WHERE city_name = '{city}'
-      AND date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL {days} DAY)
+      AND date >= DATE_SUB(DATE '{max_date}', INTERVAL {days} DAY)
     ORDER BY observed_at
     """)
 
@@ -114,7 +125,7 @@ with tab_padrao:
       )                                     AS avg_precip_dia
     FROM {tbl('mart_climate__hourly_facts')}
     WHERE city_name = '{city}'
-      AND date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL {days} DAY)
+      AND date >= DATE_SUB(DATE '{max_date}', INTERVAL {days} DAY)
     GROUP BY hour
     ORDER BY hour
     """)

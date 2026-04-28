@@ -110,49 +110,53 @@ marts/
 ## Feature 3: Dashboard Interativo em Produção
 
 ### 🎯 Objetivo
-Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático, permitindo visualização insights climáticos em tempo real.
+Publicar dashboard Streamlit no AWS Lightsail com Nginx + systemd, servindo visualizações interativas conectadas ao BigQuery em tempo real.
 
 ### 📖 User Stories
 - US-009: Criar visualizações temperatura
 - US-010: Criar visualizações precipitação
 - US-011: Implementar página alertas climáticos
-- US-012: Deploy automático via GitHub Actions
+- US-012: Deploy em produção com HTTPS
 
 ### ✅ Critérios de Aceite (Feature Level)
 
-**Given** modelos dbt finalizados  
-**When** commit/push para branch main  
-**Then** GitHub Actions deve executar pipeline CI/CD  
-**And** dashboard deve ser publicado em GitHub Pages  
-**And** link público deve estar acessível (< 3min após commit)  
-**And** visualizações devem carregar em < 3s  
+**Given** modelos dbt finalizados no BigQuery  
+**When** acessar o subdomínio do dashboard  
+**Then** Streamlit deve servir as páginas via Nginx (HTTPS)  
+**And** dados devem ser carregados do BigQuery com cache de 1h  
+**And** visualizações devem carregar em < 5s (primeira carga) e < 1s (cache)  
+**And** systemd deve reiniciar o processo automaticamente em caso de falha  
 
 ### 🔧 Implementação Técnica
 
 **Stack:**
-- Evidence.dev 30.0
-- GitHub Actions
-- GitHub Pages
+- Streamlit 1.41 + google-cloud-bigquery 3.27
+- Nginx (proxy reverso + WebSocket headers)
+- systemd (gerenciamento de processo)
+- Certbot (SSL/HTTPS)
+- AWS Lightsail (servidor Ubuntu)
 
 **Páginas:**
-- `index.md` - Visão geral
-- `temperatura.md` - Análise temperatura
-- `precipitacao.md` - Análise precipitação
-- `alertas.md` - Alertas climáticos
+- `app.py` — Home: KPIs, tendência de temperatura, mapa SC
+- `1_Temperatura.py` — Rankings, tendência regional, heatmap de anomalia
+- `2_Precipitacao.py` — Acumulados, distribuição, heatmap diário
+- `3_Alertas.py` — Severidade, tipos, tabela filtrável
+- `4_Horario.py` — Perfil horário, dia vs média 30d
+- `5_Cidades.py` — Perfil completo por município
+- `6_Comparativo.py` — Comparativo de cidades, "quando choveu", dia vs histórico
 
-**CI/CD Pipeline:**
-```yaml
-.github/workflows/deploy.yml
-- Trigger: push to main
-- Steps: install deps → build → deploy
-- Tempo: ~6min
+**Deploy:**
+```bash
+# systemd unit: weather-streamlit.service
+# Nginx: proxy para 127.0.0.1:8501 com WebSocket support
+# SSL: certbot --nginx -d weather.jeysel.dev
 ```
 
 ### 📊 Métricas
-- Uptime: 99.8%
-- Tempo resposta: 2.1s (avg)
-- Deploys/semana: ~3
-- Taxa sucesso CI/CD: 98%
+- Uptime: > 99% (restart automático via systemd)
+- Tempo resposta (cache): < 1s
+- Tempo resposta (cold): < 5s
+- Municípios disponíveis: 295 (todos os municípios de SC)
 
 ---
 
@@ -162,7 +166,7 @@ Publicar dashboard Evidence.dev em GitHub Pages com CI/CD automático, permitind
 |---------|---------------|---------|------------|--------|
 | Feature 1: Ingestão | Alto | Médio | P0 | ✅ |
 | Feature 2: ELT + Quality | Alto | Alto | P0 | ✅ |
-| Feature 3: Dashboard | Alto | Médio | P0 | ✅ |
+| Feature 3: Dashboard Streamlit | Alto | Médio | P0 | ✅ |
 
 **Critérios priorização:**
 - P0: Essencial (MVP não funciona sem)

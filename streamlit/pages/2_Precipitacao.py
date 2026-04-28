@@ -1,12 +1,20 @@
 import plotly.express as px
 import streamlit as st
-from utils.bigquery import query, tbl, MESOREGIONS
+from utils.bigquery import query, tbl
 
 st.set_page_config(page_title="Precipitação | Weather SC", page_icon="🌧️", layout="wide")
 
+_meso_df = query(f"""
+SELECT DISTINCT mesoregion
+FROM {tbl('locations', seeds=True)}
+WHERE mesoregion IS NOT NULL
+ORDER BY mesoregion
+""")
+_meso_list = _meso_df["mesoregion"].tolist() if not _meso_df.empty else []
+
 with st.sidebar:
     st.header("Filtros")
-    meso = st.selectbox("Mesorregião", ["Todas"] + MESOREGIONS)
+    meso = st.selectbox("Mesorregião", ["Todas"] + _meso_list)
     days = st.slider("Período (dias)", 7, 90, 30, step=7)
 
 meso_clause = f"AND mesoregion = '{meso}'" if meso != "Todas" else ""
@@ -25,7 +33,9 @@ col1, col2 = st.columns([3, 1])
 
 # ── Top 20 municípios mais chuvosos ───────────────────────────────────────────
 with col1:
-    st.subheader(f"Maior precipitação acumulada — últimos {days} dias")
+    limit = 20 if meso == "Todas" else 300
+    label = f"Top 20 — últimos {days} dias" if meso == "Todas" else f"{meso} — últimos {days} dias"
+    st.subheader(f"Maior precipitação acumulada — {label}")
     top = query(f"""
     SELECT city_name, mesoregion,
            ROUND(SUM(precipitation_mm), 1)                           AS total_mm,
@@ -35,15 +45,16 @@ with col1:
       {meso_clause}
     GROUP BY city_name, mesoregion
     ORDER BY total_mm DESC
-    LIMIT 20
+    LIMIT {limit}
     """)
     if not top.empty:
+        bar_height = max(520, len(top) * 22)
         fig = px.bar(
             top, x="total_mm", y="city_name", orientation="h",
             color="mesoregion",
             labels={"total_mm": "Acumulado (mm)", "city_name": "", "mesoregion": "Mesorregião"},
             hover_data={"dias_chuva": True},
-            height=520,
+            height=bar_height,
         )
         fig.update_layout(
             yaxis=dict(autorange="reversed"),

@@ -40,27 +40,28 @@
                             │  Sources: weather_raw.*
                             ▼
              ┌──────────────────────────────────────────┐
-             │   BigQuery — dataset: weather_dw          │
+             │   BigQuery — datasets                     │
              │                                          │
              │   staging.*         (views)              │
              │   intermediate.*    (views)              │
              │   marts.*           (tables particionadas)│
+             │   seeds.*           (locations)          │
              │                                          │
              │   mart_climate__daily_facts              │
              │   mart_climate__hourly_facts             │
              │   mart_climate__alerts                   │
              └──────────────┬───────────────────────────┘
                             │
-                            │  Evidence.dev (npm run sources)
-                            │  Parquet via BigQuery SDK
+                            │  google-cloud-bigquery (Python SDK)
+                            │  @st.cache_data TTL=1h
                             ▼
-             ┌──────────────────────────────┐
-             │   Evidence.dev               │
-             │   DuckDB WASM (browser)      │
-             │   GitHub Pages               │
-             │                               │
-             │   Dashboard público ao vivo  │
-             └──────────────────────────────┘
+             ┌──────────────────────────────────────────┐
+             │   Streamlit (Python)                      │
+             │   Nginx + systemd (AWS Lightsail)        │
+             │   SSL via Certbot                        │
+             │                                          │
+             │   6 páginas analíticas + Comparativo     │
+             └──────────────────────────────────────────┘
 ```
 
 ## Dois targets do dbt
@@ -68,7 +69,7 @@
 | Target | Source | Destination | Quando usar |
 |--------|--------|-------------|-------------|
 | `dev` | `weather_staging.raw` (PostgreSQL) | `weather_staging.dbt_dev` (PostgreSQL) | Desenvolvimento local |
-| `prod` | `weather_raw` (BigQuery) | `weather_dw` (BigQuery) | Produção |
+| `prod` | `weather_raw` (BigQuery) | `marts.*` (BigQuery) | Produção |
 
 A variável `DBT_SOURCE_DATABASE` controla qual banco o dbt usa como source:
 - `dev`: `weather_staging` (PostgreSQL local)
@@ -81,7 +82,8 @@ A variável `DBT_SOURCE_DATABASE` controla qual banco o dbt usa como source:
 | `airflow/` | Orquestração: 4 DAGs (coleta, ingestão PostgreSQL→BigQuery, transformação, backfill histórico) |
 | `postgresql/` | Container PG17 + app coletor + setup documentado |
 | `dbt/` | Transformações staging → intermediate → marts, testes, documentação |
-| `evidence/` | Dashboards interativos + CI/CD via GitHub Actions → GitHub Pages |
+| `streamlit/` | Dashboard interativo em Python: 6 páginas + comparativo; deploy no Lightsail |
+| `docs/` | Arquitetura, Epic, Features e User Stories |
 
 ## Estrutura de arquivos
 
@@ -92,77 +94,60 @@ Weather-Analytics/
 │   ├── architecture.md
 │   ├── EPIC.md
 │   ├── FEATURES.md
-│   ├── USER-STORIES.md
-│   ├── dashboards.md
-│   ├── dashboard_pagina01_visao_geral.md
-│   ├── dashboard_pagina02_precipitacao.md
-│   ├── dashboard_pagina03_temperatura.md
-│   ├── dashboard_pagina04_alertas.md
-│   └── dashboard_pagina05_horario.md
+│   └── USER-STORIES.md
 │
 ├── airflow/
-│   ├── Dockerfile                     # Airflow 2.9.1 + dbt-bigquery pré-instalado
-│   ├── docker-compose.yml             # services: webserver + scheduler + postgres
+│   ├── Dockerfile
+│   ├── docker-compose.yml
 │   ├── .env.example
 │   └── dags/
-│       ├── dag_weather_collection.py  # coleta 4x/dia + verificação PostgreSQL
-│       ├── dag_weather_ingest.py      # PostgreSQL → BigQuery incremental (4x/dia)
-│       ├── dag_weather_transform.py   # dbt seed → run → test (prod)
-│       └── dag_weather_backfill.py    # backfill histórico direto da API
+│       ├── dag_weather_collection.py
+│       ├── dag_weather_ingest.py
+│       ├── dag_weather_transform.py
+│       └── dag_weather_backfill.py
 │
 ├── postgresql/
-│   ├── Dockerfile                     # Ubuntu 24.04 + PG17 + Python
-│   ├── docker-compose.yml             # services: postgres + dbt-*
+│   ├── Dockerfile
+│   ├── docker-compose.yml
 │   ├── .env.example
 │   ├── config/
-│   │   ├── postgresql.conf.append
-│   │   └── pg_hba.conf.append
 │   ├── init/
-│   │   ├── 01_schemas.sql             # schemas, roles, permissões
-│   │   └── 02_raw_tables.sql          # tabelas raw pré-criadas
 │   └── collector/
-│       ├── collector.py               # busca API → upsert raw.*
+│       ├── collector.py
 │       └── README.md
 │
 ├── dbt/
-│   ├── Dockerfile
 │   ├── dbt_project.yml
-│   ├── packages.yml
 │   ├── profiles.yml.example
 │   ├── models/
 │   │   ├── staging/
-│   │   │   ├── sources.yml            # source parametrizado dev/prod
-│   │   │   ├── schema.yml
-│   │   │   ├── stg_weather__hourly.sql
-│   │   │   └── stg_weather__daily.sql
 │   │   ├── intermediate/
-│   │   │   └── int_weather__daily_enriched.sql  # join staging + locations seed
 │   │   └── marts/
-│   │       ├── schema.yml
-│   │       ├── mart_climate__daily_facts.sql    # 1 linha por município × dia
-│   │       ├── mart_climate__hourly_facts.sql   # 1 linha por município × hora
-│   │       └── mart_climate__alerts.sql         # 1 linha por evento extremo
-│   ├── tests/                         # 5 testes personalizados (singular tests)
+│   │       ├── mart_climate__daily_facts.sql
+│   │       ├── mart_climate__hourly_facts.sql
+│   │       └── mart_climate__alerts.sql
+│   ├── tests/
 │   ├── macros/
 │   └── seeds/
 │       └── locations.csv              # 295 municípios de SC
 │
-└── evidence/
-    ├── evidence.config.yaml
-    ├── sources/
-    │   └── weather_dw/
-    │       ├── connection.yaml        # BigQuery via gcloud-cli ADC
-    │       ├── mart_climate__daily_facts.sql
-    │       ├── mart_climate__hourly_facts.sql
-    │       └── mart_climate__alerts.sql
-    └── pages/
-        ├── index.md                   # Visão geral + mapa de bolhas
-        ├── temperatura.md             # Ranking, amplitude, comparativo municipal
-        ├── precipitacao.md            # Acumulados, heatmap diário, distribuição
-        ├── alertas.md                 # Eventos extremos por tipo e mesorregião
-        ├── horario.md                 # Padrões intradiários + detalhamento diário
-        └── cidades/
-            └── [cidade].md            # Drill-down por location_id
+└── streamlit/
+    ├── app.py                         # Home: KPIs + tendência + mapa SC
+    ├── pages/
+    │   ├── 1_Temperatura.py           # Rankings, tendência regional, anomalia
+    │   ├── 2_Precipitacao.py          # Acumulados, distribuição, heatmap
+    │   ├── 3_Alertas.py               # Severidade, tipos, tabela filtrável
+    │   ├── 4_Horario.py               # Perfil horário + dia vs média 30d
+    │   ├── 5_Cidades.py               # Perfil completo por município
+    │   └── 6_Comparativo.py           # Comparativo cidades, quando choveu, dia vs histórico
+    ├── utils/
+    │   └── bigquery.py                # Client singleton + query cache 1h
+    ├── .streamlit/config.toml
+    ├── requirements.txt
+    ├── .env.example
+    └── deploy/
+        ├── nginx-weather.conf
+        └── weather-streamlit.service
 ```
 
 ## Lineage dbt
@@ -175,22 +160,34 @@ seeds.locations ─────────────────────�
                                               ┌────────────┴────────────┐
                                               │                         │
                                     mart_climate__daily_facts   mart_climate__alerts
-                                    (295 mun × 12 meses)        (eventos extremos)
+                                    (295 mun × histórico)       (eventos extremos)
 
 raw.open_meteo_hourly ──► stg_weather__hourly ──► mart_climate__hourly_facts
-                                                   (295 mun × últimos 30 dias)
+                                                   (295 mun × dados horários)
 ```
+
+## Datasets BigQuery em produção
+
+| Dataset | Origem | Conteúdo |
+|---------|--------|----------|
+| `weather_raw` | Airflow (ingestão) | Dados brutos diários e horários |
+| `staging` | dbt | Views de limpeza e padronização |
+| `intermediate` | dbt | Views de enriquecimento (ephemeral) |
+| `marts` | dbt | Tabelas analíticas finais (particionadas) |
+| `seeds` | dbt seed | Tabela `locations` — 295 municípios de SC |
 
 ## Detalhes técnicos importantes
 
-### Evidence.dev e DuckDB
-As queries nas páginas `.md` rodam em **DuckDB WASM no browser**, não no BigQuery. Os dados chegam como arquivos Parquet gerados pelo `npm run sources` (via BigQuery SDK). O dialeto SQL é DuckDB, não BigQuery SQL.
+### Cache do Streamlit
+- `@st.cache_resource` no client BigQuery → singleton por processo, não re-autentica a cada página
+- `@st.cache_data(ttl=3600)` em todas as queries → evita hits desnecessários; 1h adequado dado o pipeline diário
+- Cache invalidado automaticamente quando o SQL muda (ex: filtro de mesorregião diferente)
+
+### generate_schema_name (dbt macro)
+O macro sobrescreve o comportamento padrão do dbt: usa apenas o `custom_schema` sem prefixar o dataset base. Resultado: modelos com `+schema: marts` materializam no dataset `marts` (não em `weather_dw_marts`).
 
 ### mesoregion vs region
 - `region` = macrorregião brasileira (sempre "Sul" para todos os 295 municípios de SC)
-- `mesoregion` = mesorregião de SC (Grande Florianópolis, Serra Catarinense, Vale do Itajaí, Oeste Catarinense, Norte Catarinense, Sul Catarinense)
+- `mesoregion` = mesorregião IBGE de SC (6 valores: Grande Florianópolis, Norte Catarinense, Vale do Itajaí, Serrana, Oeste Catarinense, Sul Catarinense)
 
 Os dashboards filtram por `mesoregion` para análise geográfica interna de Santa Catarina.
-
-### Parquet placeholder em mart_climate__alerts
-A query source do Evidence para `mart_climate__alerts` inclui uma linha placeholder (`alert_type = '__no_alerts__'`) via `UNION ALL` para evitar arquivo Parquet vazio (0 bytes), que o DuckDB rejeita. Todas as queries nas páginas filtram `where alert_type != '__no_alerts__'`.

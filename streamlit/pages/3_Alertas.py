@@ -1,7 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from utils.bigquery import query, tbl, MESOREGIONS
+from utils.bigquery import query, tbl
 
 st.set_page_config(page_title="Alertas | Weather SC", page_icon="🚨", layout="wide")
 
@@ -13,10 +13,18 @@ SEV_COLORS = {
 }
 SEV_ICON = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
 
+_meso_df = query(f"""
+SELECT DISTINCT mesoregion
+FROM {tbl('locations', seeds=True)}
+WHERE mesoregion IS NOT NULL
+ORDER BY mesoregion
+""")
+_meso_list = _meso_df["mesoregion"].tolist() if not _meso_df.empty else []
+
 with st.sidebar:
     st.header("Filtros")
     days = st.slider("Período (dias)", 7, 60, 30, step=7)
-    meso = st.selectbox("Mesorregião", ["Todas"] + MESOREGIONS)
+    meso = st.selectbox("Mesorregião", ["Todas"] + _meso_list)
     severity = st.selectbox("Severidade", ["Todas", "critical", "high", "medium", "low"])
 
 meso_clause = f"AND mesoregion = '{meso}'" if meso != "Todas" else ""
@@ -81,20 +89,22 @@ with col1:
 # ── Municípios mais afetados ──────────────────────────────────────────────────
 with col2:
     st.subheader("Municípios mais afetados")
+    city_limit = 15 if meso == "Todas" else 300
     top_cities = query(f"""
     SELECT city_name, mesoregion, COUNT(*) AS alertas
     FROM {tbl('mart_climate__alerts')}
     WHERE {base_where}
     GROUP BY city_name, mesoregion
     ORDER BY alertas DESC
-    LIMIT 15
+    LIMIT {city_limit}
     """)
     if not top_cities.empty:
+        bar_height = max(320, len(top_cities) * 22)
         fig = px.bar(
             top_cities, x="alertas", y="city_name", orientation="h",
             color="mesoregion",
             labels={"alertas": "Nº de Alertas", "city_name": "", "mesoregion": "Mesorregião"},
-            height=320,
+            height=bar_height,
         )
         fig.update_layout(
             yaxis=dict(autorange="reversed"),

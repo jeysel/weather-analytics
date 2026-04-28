@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
-from utils.bigquery import query, tbl, MESOREGIONS
+from utils.bigquery import query, tbl
 
 load_dotenv()
 
@@ -22,10 +22,19 @@ if not os.environ.get("GCP_PROJECT_ID"):
     )
     st.stop()
 
+# ── Mesorregiões disponíveis (lidas do seed — fonte canônica dos nomes) ────────
+_meso_df = query(f"""
+SELECT DISTINCT mesoregion
+FROM {tbl('locations', seeds=True)}
+WHERE mesoregion IS NOT NULL
+ORDER BY mesoregion
+""")
+_meso_list = _meso_df["mesoregion"].tolist() if not _meso_df.empty else []
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Filtros")
-    meso = st.selectbox("Mesorregião", ["Todas"] + MESOREGIONS)
+    meso = st.selectbox("Mesorregião", ["Todas"] + _meso_list)
     days = st.slider("Período (dias)", 7, 90, 30, step=7)
 
 meso_clause = f"AND mesoregion = '{meso}'" if meso != "Todas" else ""
@@ -76,82 +85,94 @@ if not kpi_df.empty:
 
 st.divider()
 
-col_trend, col_map = st.columns([3, 2])
-
 # ── Tendência de temperatura ──────────────────────────────────────────────────
-with col_trend:
-    trend = query(f"""
-    SELECT
-      date,
-      ROUND(AVG(temp_max_c), 1) AS temp_max,
-      ROUND(AVG(temp_min_c), 1) AS temp_min,
-      ROUND(AVG(temp_avg_c), 1) AS temp_avg
-    FROM {tbl('mart_climate__daily_facts')}
-    WHERE date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL {days} DAY)
-      {meso_clause}
-    GROUP BY date
-    ORDER BY date
-    """)
+trend = query(f"""
+SELECT
+  date,
+  ROUND(AVG(temp_max_c), 1) AS temp_max,
+  ROUND(AVG(temp_min_c), 1) AS temp_min,
+  ROUND(AVG(temp_avg_c), 1) AS temp_avg
+FROM {tbl('mart_climate__daily_facts')}
+WHERE date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL {days} DAY)
+  {meso_clause}
+GROUP BY date
+ORDER BY date
+""")
 
-    if not trend.empty:
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=trend["date"], y=trend["temp_max"],
-            name="Máxima", line=dict(color="#EF5350", width=2),
-        ))
-        fig.add_trace(go.Scatter(
-            x=trend["date"], y=trend["temp_avg"],
-            name="Média", line=dict(color="#FFA726", width=2),
-        ))
-        fig.add_trace(go.Scatter(
-            x=trend["date"], y=trend["temp_min"],
-            name="Mínima", line=dict(color="#42A5F5", width=2),
-            fill="tonexty", fillcolor="rgba(66,165,245,0.08)",
-        ))
-        fig.update_layout(
-            title=f"Tendência de temperatura — últimos {days} dias",
-            yaxis_title="°C",
-            legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
-            margin=dict(l=0, r=0, t=40, b=0),
-            height=360,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+if not trend.empty:
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=trend["date"], y=trend["temp_max"],
+        name="Máxima", line=dict(color="#EF5350", width=2),
+    ))
+    fig.add_trace(go.Scatter(
+        x=trend["date"], y=trend["temp_avg"],
+        name="Média", line=dict(color="#FFA726", width=2),
+    ))
+    fig.add_trace(go.Scatter(
+        x=trend["date"], y=trend["temp_min"],
+        name="Mínima", line=dict(color="#42A5F5", width=2),
+        fill="tonexty", fillcolor="rgba(66,165,245,0.08)",
+    ))
+    fig.update_layout(
+        title=f"Tendência de temperatura — últimos {days} dias",
+        yaxis_title="°C",
+        legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
+        margin=dict(l=0, r=0, t=40, b=0),
+        height=420,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
 
 # ── Mapa de municípios ────────────────────────────────────────────────────────
-with col_map:
-    mapa = query(f"""
-    SELECT city_name, mesoregion, latitude, longitude,
-           temp_max_c, precipitation_mm
-    FROM {tbl('mart_climate__daily_facts')}
-    WHERE date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL 2 DAY)
-      {meso_clause}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY date DESC) = 1
-    """)
+mapa = query(f"""
+SELECT city_name, mesoregion, latitude, longitude,
+       temp_max_c, precipitation_mm
+FROM {tbl('mart_climate__daily_facts')}
+WHERE mesoregion IS NOT NULL
+  {meso_clause}
+QUALIFY ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY date DESC) = 1
+""")
 
-    if not mapa.empty:
-        mapa["_size"] = mapa["precipitation_mm"].clip(lower=1)
-        fig_m = px.scatter_mapbox(
-            mapa,
-            lat="latitude", lon="longitude",
-            color="temp_max_c", size="_size", size_max=14,
-            hover_name="city_name",
-            hover_data={
-                "mesoregion": True,
-                "temp_max_c": ":.1f",
-                "precipitation_mm": ":.1f",
-                "latitude": False, "longitude": False, "_size": False,
-            },
-            color_continuous_scale="RdYlBu_r",
-            range_color=[-5, 40],
-            zoom=5.5,
-            center={"lat": -27.2, "lon": -50.5},
-            mapbox_style="carto-positron",
-            labels={"temp_max_c": "Temp Máx (°C)", "precipitation_mm": "Precip (mm)"},
-            height=360,
+if mapa.empty:
+    st.warning(f"Sem dados disponíveis para **{meso}**. Verifique se o pipeline já rodou para esta mesorregião.")
+else:
+    mapa["_size"] = pd.to_numeric(mapa["precipitation_mm"], errors="coerce").fillna(0).clip(lower=1)
+
+    if meso != "Todas":
+        center_lat = mapa["latitude"].mean()
+        center_lon = mapa["longitude"].mean()
+        spread = max(
+            mapa["latitude"].max() - mapa["latitude"].min(),
+            mapa["longitude"].max() - mapa["longitude"].min(),
         )
-        fig_m.update_layout(
-            title="Temperatura Máxima por Município",
-            margin=dict(l=0, r=0, t=40, b=0),
-            coloraxis_colorbar=dict(title="°C", thickness=12),
-        )
-        st.plotly_chart(fig_m, use_container_width=True)
+        zoom = 8 if spread < 1 else 7.5 if spread < 1.5 else 7
+    else:
+        center_lat, center_lon, zoom = -27.2, -50.5, 5.5
+
+    fig_m = px.scatter_mapbox(
+        mapa,
+        lat="latitude", lon="longitude",
+        color="temp_max_c", size="_size", size_max=18,
+        hover_name="city_name",
+        hover_data={
+            "mesoregion": True,
+            "temp_max_c": ":.1f",
+            "precipitation_mm": ":.1f",
+            "latitude": False, "longitude": False, "_size": False,
+        },
+        color_continuous_scale="RdYlBu_r",
+        range_color=[-5, 40],
+        zoom=zoom,
+        center={"lat": center_lat, "lon": center_lon},
+        mapbox_style="carto-positron",
+        labels={"temp_max_c": "Temp Máx (°C)", "precipitation_mm": "Precip (mm)"},
+        height=540,
+    )
+    fig_m.update_layout(
+        title="Temperatura Máxima por Município",
+        margin=dict(l=0, r=0, t=40, b=0),
+        coloraxis_colorbar=dict(title="°C", thickness=14),
+    )
+    st.plotly_chart(fig_m, use_container_width=True)

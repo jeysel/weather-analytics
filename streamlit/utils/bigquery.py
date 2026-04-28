@@ -31,13 +31,17 @@ def tbl(name: str, seeds: bool = False) -> str:
     return f"`{_project()}.{_dataset(seeds)}.{name}`"
 
 
+def _location() -> str | None:
+    return os.environ.get("BIGQUERY_LOCATION") or None
+
+
 @st.cache_resource
 def _client() -> bigquery.Client:
     key_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if key_path:
         creds = service_account.Credentials.from_service_account_file(key_path)
-        return bigquery.Client(project=_project(), credentials=creds)
-    return bigquery.Client(project=_project())
+        return bigquery.Client(project=_project(), credentials=creds, location=_location())
+    return bigquery.Client(project=_project(), location=_location())
 
 
 @st.cache_data(ttl=3600, show_spinner="Consultando BigQuery...")

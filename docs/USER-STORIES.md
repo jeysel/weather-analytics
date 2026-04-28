@@ -200,20 +200,18 @@ And relatório html deve ser gerado
 
 #### Acceptance Criteria
 ```gherkin
-Given dashboard Evidence.dev publicado
-When acessar página "Análise de Temperatura"
-Then gráfico linha deve exibir temperatura diária
-And filtro dropdown deve permitir selecionar localidade
-And gráfico deve incluir:
-  - Temperatura média (linha principal)
-  - Média móvel 30d (linha tracejada)
-  - Faixa min-max (área sombreada)
-And gráfico deve carregar em < 3 segundos
+Given dashboard Streamlit acessível via HTTPS
+When acessar página "Temperatura"
+Then gráfico linha deve exibir temperatura diária (máx/média/mín)
+And filtro de mesorregião deve restringir os dados exibidos
+And heatmap de anomalia deve mostrar desvio vs média 30d por região
+And gráfico de comparativo deve permitir selecionar até 3 municípios simultâneos
+And dados devem carregar em < 5s (primeira carga) e < 1s (cache)
 ```
 
 **Implementação:**
-- `pages/temperatura.md`
-- Evidence chart component: `LineChart`
+- `streamlit/pages/1_Temperatura.py`
+- `streamlit/pages/6_Comparativo.py` (tab Comparativo de Cidades)
 
 ---
 
@@ -237,36 +235,34 @@ And se nenhum alerta: exibir mensagem "Nenhum alerta nos últimos 7 dias"
 ```
 
 **Implementação:**
-- `pages/alertas.md`
-- Evidence component: `DataTable` com conditional formatting
+- `streamlit/pages/3_Alertas.py`
 
 ---
 
-### US-012: Deploy Automático via CI/CD
+### US-012: Deploy em Produção com Alta Disponibilidade
 
 **Como** desenvolvedor,  
-**Quero** que dashboard seja publicado automaticamente após commit,  
-**Para que** mudanças cheguem produção sem intervenção manual.
+**Quero** que o dashboard Streamlit esteja disponível 24/7 em produção via HTTPS,  
+**Para que** usuários acessem insights climáticos sem interrupções.
 
 #### Acceptance Criteria
 ```gherkin
-Given GitHub Actions workflow configurado
-When fazer push para branch main
-Then workflow deve executar:
-  1. Install dependencies (npm install)
-  2. Build Evidence (npm run build)
-  3. Deploy para GitHub Pages
-And deploy deve completar em < 10 minutos
-And em caso de erro, workflow deve falhar (não deploy quebrado)
-And URL público deve refletir mudanças em < 3min após success
+Given servidor AWS Lightsail provisionado com Ubuntu
+When deploy for executado via systemd + Nginx
+Then Streamlit deve estar acessível via HTTPS no subdomínio dedicado
+And Nginx deve fazer proxy reverso com suporte a WebSocket
+And systemd deve reiniciar o processo automaticamente em caso de falha
+And certificado SSL deve ser gerenciado via Certbot
+And uptime deve ser > 99%
 ```
 
 **Implementação:**
-- `.github/workflows/deploy.yml`
-- GitHub Pages config
+- `streamlit/deploy/nginx-weather.conf`
+- `streamlit/deploy/weather-streamlit.service`
+- Certbot SSL (`certbot --nginx -d weather.jeysel.dev`)
 
 **Monitoramento:**
-- GitHub Actions logs
+- `sudo journalctl -u weather-streamlit -f`
 - Uptime check (manual/script)
 
 ---
@@ -313,4 +309,5 @@ And URL público deve refletir mudanças em < 3min após success
 ---
 
 **Última atualização:** Abril 2026  
-**User Stories implementadas:** 10/12 (83%)
+**User Stories implementadas:** 10/12 (83%)  
+**Dashboard:** Streamlit (AWS Lightsail — Nginx + systemd + SSL)

@@ -16,14 +16,14 @@ CLASS_COLORS = {
     "extreme":  "#4A148C",
 }
 
-# Lista de municípios com metadados
+# Lista de municípios com metadados — usa seeds.locations para garantir todos os 295 municípios
 cities = query(f"""
-SELECT DISTINCT city_name, mesoregion,
+SELECT city_name, mesoregion,
        ROUND(latitude, 4)  AS latitude,
        ROUND(longitude, 4) AS longitude,
        altitude_m
-FROM {tbl('mart_climate__daily_facts')}
-WHERE date >= DATE_SUB(CURRENT_DATE('America/Sao_Paulo'), INTERVAL 30 DAY)
+FROM {tbl('locations', seeds=True)}
+WHERE city_name IS NOT NULL
 ORDER BY city_name
 """)
 
