@@ -407,8 +407,10 @@ sudo apt install python3-venv python3-pip -y
 python3 -m venv ~/venv/weather
 source ~/venv/weather/bin/activate
 
-# Clonar/atualizar o repositório
-cd ~/Analytics-Engineer/Weather-Analytics/streamlit
+# Clonar o repositório (segue a convenção ~/app_* do servidor)
+git clone https://github.com/SEU_USUARIO/weather-analytics.git ~/app_weather
+cd ~/app_weather/streamlit
+source ~/venv/weather/bin/activate
 pip install -r requirements.txt
 ```
 

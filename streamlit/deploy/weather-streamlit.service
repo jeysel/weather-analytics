@@ -14,8 +14,8 @@ After=network.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/Analytics-Engineer/Weather-Analytics/streamlit
-EnvironmentFile=/home/ubuntu/Analytics-Engineer/Weather-Analytics/streamlit/.env
+WorkingDirectory=/home/ubuntu/app_weather/streamlit
+EnvironmentFile=/home/ubuntu/app_weather/streamlit/.env
 
 # Ajuste o caminho do venv se necessário (ver seção de deploy no README)
 ExecStart=/home/ubuntu/venv/weather/bin/streamlit run app.py \
