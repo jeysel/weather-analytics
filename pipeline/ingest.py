@@ -136,13 +136,14 @@ def fetch_forecast(location: dict, start_date: str, end_date: str) -> dict:
 # ── Flatten ───────────────────────────────────────────────────────────────────
 
 def _norm_ts(s) -> str | None:
-    """Normaliza string de datetime para formato aceito pelo BigQuery."""
+    """Normaliza string de datetime para formato TIMESTAMP aceito pelo BigQuery."""
     if s is None:
         return None
     s = str(s)
     if len(s) == 16:  # "YYYY-MM-DDTHH:MM" → adiciona segundos
-        return s + ":00"
-    return s
+        s = s + ":00"
+    # Substitui T por espaço para formato BigQuery TIMESTAMP
+    return s.replace("T", " ")
 
 
 def iter_hourly(raw: dict, location_id: str, extracted_at: str) -> Generator[dict, None, None]:

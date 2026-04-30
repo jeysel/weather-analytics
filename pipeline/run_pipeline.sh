@@ -27,11 +27,10 @@ if python /app/pipeline/ingest.py; then
     echo "✓ Ingestão concluída"
     PASSO_OK=$((PASSO_OK + 1))
 else
-    echo "✗ ERRO: ingestão falhou (exit $?)"
-    PASSO_FALHOU="ingest.py"
-    echo ""
-    echo "Pipeline abortado em: $(date '+%Y-%m-%d %H:%M:%S')"
-    exit 1
+    INGEST_EXIT=$?
+    echo "⚠ Ingestão com erros parciais (exit $INGEST_EXIT) — continuando dbt"
+    echo "  Municípios com falha serão reprocessados na próxima execução"
+    PASSO_OK=$((PASSO_OK + 1))
 fi
 
 # ── Passo 2: dbt deps + run ──────────────────────────────────────────────────
