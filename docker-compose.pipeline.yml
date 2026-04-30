@@ -1,0 +1,18 @@
+services:
+  weather-pipeline:
+    build:
+      context: .
+      dockerfile: pipeline/Dockerfile
+    container_name: weather-pipeline
+    restart: "no"
+    volumes:
+      - /home/ubuntu/secrets:/app/secrets:ro
+      - /home/ubuntu/app_weather/logs:/app/logs
+    env_file:
+      - .env.prod
+    networks:
+      - jeysel-network
+
+networks:
+  jeysel-network:
+    external: true

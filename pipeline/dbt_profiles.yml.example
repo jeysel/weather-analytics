@@ -1,0 +1,21 @@
+# dbt profiles para o container de pipeline em produção.
+# Este arquivo é copiado para profiles.yml dentro do container pelo Dockerfile.
+# Todos os valores sensíveis vêm de variáveis de ambiente injetadas pelo docker-compose.
+#
+# ATENÇÃO: NÃO commitar profiles.yml (ignorado pelo .gitignore).
+#          Este .example é seguro para o repositório público.
+
+weather_pipeline:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BIGQUERY_DBT_DATASET', 'weather_dw') }}"
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      location: "{{ env_var('BIGQUERY_LOCATION', 'southamerica-east1') }}"
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive
+      retries: 3
