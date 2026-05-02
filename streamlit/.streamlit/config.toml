@@ -6,10 +6,10 @@ textColor         = "#FAFAFA"
 
 [server]
 port              = 8501
-address           = "127.0.0.1"
+address           = "0.0.0.0"
 headless          = true
-enableCORS        = false
-enableXsrfProtection = true
+enableCORS        = true
+enableXsrfProtection = false
 
 [browser]
 gatherUsageStats  = false
